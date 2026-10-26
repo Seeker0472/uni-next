@@ -34,21 +34,18 @@ func (p *Pump) Run(ctx context.Context, ready chan<- struct{}) error {
 	var lastHeartbeat atomic.Int64
 	lastHeartbeat.Store(time.Now().UnixNano())
 	var readyOnce sync.Once
+	frameBuffer := make([]byte, protocol.HeaderSize+p.MTU)
 	writeFrame := func(kind uint16, body []byte) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()
 		if err := p.Connection.SetWriteDeadline(time.Now().Add(p.WriteTimeout)); err != nil {
 			return err
 		}
-		var storage [protocol.HeaderSize]byte
-		header, err := protocol.EncodeHeader(storage[:], p.Session, kind, len(body))
+		packet, err := protocol.EncodeInto(frameBuffer, p.Session, kind, body)
 		if err != nil {
 			return err
 		}
-		if err := writeAll(p.Connection, header); err != nil {
-			return err
-		}
-		return writeAll(p.Connection, body)
+		return writeAll(p.Connection, packet)
 	}
 	workers.Add(3)
 	go func() { defer workers.Done(); errorsCh <- p.readLoop(runCtx, &lastHeartbeat, &readyOnce, ready) }()

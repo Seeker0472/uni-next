@@ -9,10 +9,10 @@ func syntheticNetConfig() []byte {
 	body := make([]byte, netConfigBodySize)
 	copy(body[0:4], []byte{10, 255, 250, 42})
 	copy(body[4:8], []byte{255, 255, 255, 0})
-	binary.BigEndian.PutUint32(body[0x0c:0x10], 2)
+	binary.BigEndian.PutUint32(body[0x08:0x0c], 2)
 	binary.BigEndian.PutUint32(body[0x14:0x18], 1)
 	binary.BigEndian.PutUint32(body[0x18:0x1c], 12)
-	binary.BigEndian.PutUint32(body[0x1c:0x20], 1)
+	binary.LittleEndian.PutUint32(body[0x1c:0x20], 1)
 	binary.BigEndian.PutUint32(body[0xb8:0xbc], 1)
 	copy(body[0xbc:0xc0], []byte{10, 19, 20, 0})
 	copy(body[0xc0:0xc4], []byte{255, 255, 255, 0})
@@ -38,5 +38,15 @@ func TestParseNetConfigUsesCountsAndMasks(t *testing.T) {
 	}
 	if _, err := ParseNetConfig(bad); err == nil {
 		t.Fatal("expected default route rejection")
+	}
+	bad = syntheticNetConfig()
+	binary.BigEndian.PutUint32(bad[0x08:0x0c], 3)
+	if _, err := ParseNetConfig(bad); err == nil {
+		t.Fatal("expected unknown fixed flag rejection")
+	}
+	bad = syntheticNetConfig()
+	binary.BigEndian.PutUint32(bad[0x1c:0x20], 1)
+	if _, err := ParseNetConfig(bad); err == nil {
+		t.Fatal("expected wrong-endian alloc field rejection")
 	}
 }

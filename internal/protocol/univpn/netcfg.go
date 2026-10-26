@@ -34,10 +34,12 @@ func ParseNetConfig(body []byte) (NetConfig, error) {
 	if bits != 32 || ones < 1 {
 		return NetConfig{}, errors.New("netcfg mask is not contiguous IPv4")
 	}
-	if !allZero(body[0x08:0x0c]) ||
-		binary.BigEndian.Uint32(body[0x0c:0x10]) != 2 ||
-		!allZero(body[0x10:0x14]) ||
-		binary.BigEndian.Uint32(body[0x1c:0x20]) != 1 ||
+	// Verified fixed layout: big-endian 2 at 0x08, zeros at 0x0c..0x13,
+	// little-endian 1 at 0x1c, and zeros at 0xac..0xb7. The profile mixes
+	// endianness and differs from the earlier table's 0x08/0x0c labels.
+	if binary.BigEndian.Uint32(body[0x08:0x0c]) != 2 ||
+		!allZero(body[0x0c:0x14]) ||
+		binary.LittleEndian.Uint32(body[0x1c:0x20]) != 1 ||
 		!allZero(body[0xac:0xb8]) {
 		return NetConfig{}, errors.New("netcfg fixed fields do not match the supported profile")
 	}

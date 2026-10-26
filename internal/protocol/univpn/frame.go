@@ -69,15 +69,13 @@ func (c Codec) Write(writer io.Writer, frame Frame) error {
 	if len(frame.Body) > c.MaxBody || len(frame.Body) > 0xffff {
 		return fmt.Errorf("CSP body length %d exceeds limit", len(frame.Body))
 	}
-	var storage [HeaderSize]byte
-	header, err := EncodeHeader(storage[:], frame.Session, frame.Type, len(frame.Body))
+	// The verified gateway closes connections when a control frame's header and
+	// body arrive in separate TLS records, so keep each frame in one Write.
+	packet, err := EncodeInto(make([]byte, HeaderSize+len(frame.Body)), frame.Session, frame.Type, frame.Body)
 	if err != nil {
 		return err
 	}
-	if err := writeFull(writer, header); err != nil {
-		return err
-	}
-	return writeFull(writer, frame.Body)
+	return writeFull(writer, packet)
 }
 
 func EncodeHeader(buffer []byte, session SessionID, kind uint16, bodyLength int) ([]byte, error) {

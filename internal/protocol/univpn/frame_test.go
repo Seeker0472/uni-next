@@ -74,6 +74,34 @@ func TestCodecRejectsSessionMismatchAndTruncation(t *testing.T) {
 	}
 }
 
+func TestCodecWritesEachFrameInOneWrite(t *testing.T) {
+	writer := &countingWriter{}
+	frame := Frame{Session: SessionID{1, 2, 3, 4}, Type: 0x1d, Body: make([]byte, 324)}
+	if err := NewCodec().Write(writer, frame); err != nil {
+		t.Fatal(err)
+	}
+	if writer.writes != 1 {
+		t.Fatalf("frame was delivered in %d writes; the verified gateway requires one", writer.writes)
+	}
+	decoded, err := NewCodec().Read(bytes.NewReader(writer.buffer.Bytes()), &frame.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Type != frame.Type || len(decoded.Body) != len(frame.Body) {
+		t.Fatalf("unexpected decoded frame: %#v", decoded)
+	}
+}
+
+type countingWriter struct {
+	writes int
+	buffer bytes.Buffer
+}
+
+func (w *countingWriter) Write(value []byte) (int, error) {
+	w.writes++
+	return w.buffer.Write(value)
+}
+
 func TestCodecRejectsBodyAboveConfiguredLimit(t *testing.T) {
 	var stream bytes.Buffer
 	if err := NewCodec().Write(&stream, Frame{Type: 2, Body: make([]byte, 33)}); err != nil {
