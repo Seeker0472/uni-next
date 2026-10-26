@@ -39,3 +39,5 @@ The service receives only `CAP_NET_ADMIN`, `/dev/net/tun`, bounded writable stat
 When `gateway.mode = "netbird"`, the module enables IPv4 forwarding and, when requested, nftables plus a narrow MSS clamp for the configured ingress interface, source ranges, destination ranges, and TUN. `openFirewall` likewise selects the NixOS nftables backend for its narrow input rules. The module does not change the global FORWARD policy or create NetBird management resources.
 
 `openFirewall = true` adds source- and destination-limited TCP listener and UDP relay rules derived from SOCKS settings. Keep it false if the host firewall is managed elsewhere.
+
+For non-NixOS hosts, use the hardened unit and runbook in [`systemd.md`](systemd.md).

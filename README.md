@@ -29,6 +29,10 @@ go test ./...
 go vet ./...
 ```
 
+## Run
+
+This is a privileged network service, not an ordinary user program. TUN creation, VIP assignment, and policy routing require `CAP_NET_ADMIN`, so run it under systemd as the dedicated `univpn` user, never with setuid or `setcap`. The non-NixOS unit is [`deploy/univpn.service`](deploy/univpn.service); see [`docs/systemd.md`](docs/systemd.md) for installation, credentials, status, and rotation. NixOS users use `services.univpn` instead.
+
 ## Configuration
 
 Start from [`docs/config.example.json`](docs/config.example.json). It contains documentation-only addresses and no real credential or certificate. See the complete [configuration and CLI reference](docs/configuration.md) for defaults, constraints, credential precedence, and exit classes.

@@ -1,0 +1,41 @@
+[Unit]
+Description=UniVPN Go client
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=univpn
+Group=univpn
+ExecStart=/usr/local/bin/univpn connect --config /etc/univpn/config.json
+StateDirectory=univpn
+RuntimeDirectory=univpn
+StateDirectoryMode=0750
+RuntimeDirectoryMode=0750
+LoadCredential=vpn-password:/etc/univpn/credentials/vpn-password
+LoadCredential=logout-user-id:/etc/univpn/credentials/logout-user-id
+# Add this line only when SOCKS authentication is enabled.
+# LoadCredential=socks-password:/etc/univpn/credentials/socks-password
+Restart=on-failure
+RestartSec=10s
+RestartPreventExitStatus=20 21 22 23 24 25
+TimeoutStopSec=30s
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+DevicePolicy=closed
+DeviceAllow=/dev/net/tun rw
+NoNewPrivileges=true
+PrivateDevices=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target

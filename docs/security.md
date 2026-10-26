@@ -9,4 +9,4 @@
 - The session gate closes all new proxy access before network suspension. Existing proxy sockets and UDP associations belong to one session generation and are not migrated.
 - NetBird forwarding policy remains owned by NetBird. univpn owns only its TUN, exact policy routes/rules, journal, and narrowly matched conntrack deletion.
 - Runtime secrets should be supplied by systemd credentials, sops-nix, agenix, or equally restricted files. Ordinary environment variables and command arguments are unsupported.
-- The Go process uses `CAP_NET_ADMIN`; this is a meaningful privilege boundary, not a sandbox equivalent to a separate helper process.
+- The Go process uses `CAP_NET_ADMIN` under a dedicated service user; this is a meaningful privilege boundary, not a sandbox equivalent to a separate helper process. There is no setuid/setcap binary and no root-running client; non-NixOS deployments use [`deploy/univpn.service`](../deploy/univpn.service).
