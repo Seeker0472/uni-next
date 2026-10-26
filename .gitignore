@@ -1,0 +1,10 @@
+/result
+/.direnv
+/.envrc
+/univpn
+/*.test
+/coverage.out
+/*.key
+/*.pem
+/.secrets/
+/credentials/

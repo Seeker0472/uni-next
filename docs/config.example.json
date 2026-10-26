@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "protocol": { "profile": "huawei-linux-base-v1" },
+  "server": { "host": "192.0.2.10", "port": 9443 },
+  "auth": {
+    "username": "vpn-user@example",
+    "mac": "02:00:00:00:00:01",
+    "logout_user_id_file": "/run/secrets/univpn-logout-user-id"
+  },
+  "tls": {
+    "spki_pin_file": "/etc/univpn/gateway.spki",
+    "cipher_suites": [
+      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+      "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+    ]
+  },
+  "network": {
+    "tun_name": "univpn0",
+    "mtu": 1300,
+    "allowed_routes": ["10.19.20.0/24"],
+    "table": 20000,
+    "rule_priority": 100
+  },
+  "timeouts": {
+    "connect": "10s", "tls": "10s", "auth": "20s",
+    "control_step": "10s", "write": "10s", "logout": "5s"
+  },
+  "heartbeat": { "interval": "10s", "timeout": "35s" },
+  "reconnect": {
+    "network": { "enabled": true },
+    "initial": "5s", "maximum": "1m", "reset_after": "5m",
+    "kickout": { "mode": "bounded", "window": "10m", "max_retries": 3 }
+  },
+  "socks": {
+    "enabled": true,
+    "listeners": ["127.0.0.1:1080"],
+    "auth": { "username": "vpn-proxy", "password_file": "/run/secrets/univpn-socks-password" },
+    "allow_loopback_no_auth": false,
+    "allow_sources": ["127.0.0.1/32"],
+    "allowed_destinations": ["10.19.20.0/24"],
+    "max_tcp_connections": 512,
+    "max_per_source": 64,
+    "handshake_timeout": "10s",
+    "dial_timeout": "10s",
+    "tcp_idle_timeout": "0s",
+    "udp": {
+      "enabled": true,
+      "port_range": { "from": 20000, "to": 20255 },
+      "max_associations": 128,
+      "max_remotes_per_association": 64,
+      "idle_timeout": "2m"
+    }
+  },
+  "gateway": {
+    "mode": "off",
+    "clamp_tcp_mss": true
+  },
+  "runtime": { "state_dir": "/var/lib/univpn", "run_dir": "/run/univpn" },
+  "logging": { "level": "info", "format": "text" }
+}
