@@ -24,6 +24,7 @@ type Config struct {
 	Heartbeat     Heartbeat `json:"heartbeat"`
 	Reconnect     Reconnect `json:"reconnect"`
 	Socks         Socks     `json:"socks"`
+	HTTP          HTTP      `json:"http"`
 	Gateway       Gateway   `json:"gateway"`
 	Runtime       Runtime   `json:"runtime"`
 	Logging       Logging   `json:"logging"`
@@ -110,6 +111,16 @@ type PortRange struct {
 	From uint16 `json:"from"`
 	To   uint16 `json:"to"`
 }
+type HTTP struct {
+	Enabled             bool     `json:"enabled"`
+	Listeners           []string `json:"listeners"`
+	AllowedDestinations []string `json:"allowed_destinations"`
+	MaxConnections      int      `json:"max_connections"`
+	MaxPerSource        int      `json:"max_per_source"`
+	ReadHeaderTimeout   Duration `json:"read_header_timeout"`
+	DialTimeout         Duration `json:"dial_timeout"`
+	IdleTimeout         Duration `json:"idle_timeout"`
+}
 type Gateway struct {
 	Mode             string   `json:"mode"`
 	IngressInterface string   `json:"ingress_interface,omitempty"`
@@ -132,27 +143,60 @@ func Defaults() Config {
 		Protocol:      Protocol{Profile: "huawei-linux-base-v1"},
 		Server:        Server{Port: 9443},
 		TLS:           TLS{CipherSuites: []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"}},
-		Network:       Network{TunName: "univpn0", MTU: 1300, Table: 20000, RulePriority: 100},
+		Network:       Network{TunName: "uni-next0", MTU: 1300, Table: 20000, RulePriority: 100},
 		Timeouts:      Timeouts{Connect: D(10 * time.Second), TLS: D(10 * time.Second), Auth: D(20 * time.Second), ControlStep: D(10 * time.Second), Write: D(10 * time.Second), Logout: D(5 * time.Second)},
 		Heartbeat:     Heartbeat{Interval: D(10 * time.Second), Timeout: D(35 * time.Second)},
 		Reconnect:     Reconnect{Network: NetworkReconnect{Enabled: true}, Initial: D(5 * time.Second), Maximum: D(60 * time.Second), ResetAfter: D(5 * time.Minute), Kickout: Kickout{Mode: "bounded", Window: D(10 * time.Minute), MaxRetries: 3}},
 		Socks:         Socks{Listeners: []string{"127.0.0.1:1080"}, MaxTCPConnections: 512, MaxPerSource: 64, HandshakeTimeout: D(10 * time.Second), DialTimeout: D(10 * time.Second), UDP: SocksUDP{Enabled: true, PortRange: PortRange{From: 20000, To: 20255}, MaxAssociations: 128, MaxRemotesPerAssociation: 64, IdleTimeout: D(120 * time.Second)}},
+		HTTP:          HTTP{Listeners: []string{"127.0.0.1:8080"}, MaxConnections: 512, MaxPerSource: 64, ReadHeaderTimeout: D(10 * time.Second), DialTimeout: D(10 * time.Second), IdleTimeout: D(2 * time.Minute)},
 		Gateway:       Gateway{Mode: "off", ClampTCPMSS: true},
-		Runtime:       Runtime{StateDir: "/var/lib/univpn", RunDir: "/run/univpn"},
+		Runtime:       Runtime{StateDir: "/var/lib/uni-next", RunDir: "/run/uni-next"},
 		Logging:       Logging{Level: "info", Format: "text"},
 	}
 }
 
 func Load(path string) (Config, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return Config{}, fmt.Errorf("open config: %w", err)
+	return Resolve(path, Defaults(), nil)
+}
+
+// Resolve decodes an optional strict JSON file over base, applies explicit
+// overrides, and validates only the final configuration.
+func Resolve(path string, base Config, apply func(*Config) error) (Config, error) {
+	cfg := base
+	if path != "" {
+		file, err := os.Open(path)
+		if err != nil {
+			return Config{}, fmt.Errorf("open config: %w", err)
+		}
+		defer file.Close()
+		cfg, err = decodeOnto(file, base)
+		if err != nil {
+			return Config{}, err
+		}
 	}
-	defer file.Close()
-	return Decode(file)
+	if apply != nil {
+		if err := apply(&cfg); err != nil {
+			return Config{}, err
+		}
+	}
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
 }
 
 func Decode(reader io.Reader) (Config, error) {
+	cfg, err := decodeOnto(reader, Defaults())
+	if err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+func decodeOnto(reader io.Reader, base Config) (Config, error) {
 	data, err := io.ReadAll(io.LimitReader(reader, MaxConfigBytes+1))
 	if err != nil {
 		return Config{}, fmt.Errorf("read config: %w", err)
@@ -163,16 +207,13 @@ func Decode(reader io.Reader) (Config, error) {
 	if err := rejectDuplicateKeys(data); err != nil {
 		return Config{}, err
 	}
-	cfg := Defaults()
+	cfg := base
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("decode config: %w", err)
 	}
 	if err := ensureEOF(decoder); err != nil {
-		return Config{}, err
-	}
-	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil

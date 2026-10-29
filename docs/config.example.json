@@ -5,17 +5,17 @@
   "auth": {
     "username": "vpn-user@example",
     "mac": "02:00:00:00:00:01",
-    "logout_user_id_file": "/run/secrets/univpn-logout-user-id"
+    "logout_user_id_file": "/run/secrets/uni-next-logout-user-id"
   },
   "tls": {
-    "spki_pin_file": "/etc/univpn/gateway.spki",
+    "spki_pin_file": "/etc/uni-next/gateway.spki",
     "cipher_suites": [
       "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
       "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
     ]
   },
   "network": {
-    "tun_name": "univpn0",
+    "tun_name": "uni-next0",
     "mtu": 1300,
     "allowed_routes": ["10.19.20.0/24"],
     "table": 20000,
@@ -34,7 +34,7 @@
   "socks": {
     "enabled": true,
     "listeners": ["127.0.0.1:1080"],
-    "auth": { "username": "vpn-proxy", "password_file": "/run/secrets/univpn-socks-password" },
+    "auth": { "username": "vpn-proxy", "password_file": "/run/secrets/uni-next-socks-password" },
     "allow_loopback_no_auth": false,
     "allow_sources": ["127.0.0.1/32"],
     "allowed_destinations": ["10.19.20.0/24"],
@@ -51,10 +51,20 @@
       "idle_timeout": "2m"
     }
   },
+  "http": {
+    "enabled": false,
+    "listeners": ["127.0.0.1:8080"],
+    "allowed_destinations": ["10.19.20.0/24"],
+    "max_connections": 512,
+    "max_per_source": 64,
+    "read_header_timeout": "10s",
+    "dial_timeout": "10s",
+    "idle_timeout": "2m"
+  },
   "gateway": {
     "mode": "off",
     "clamp_tcp_mss": true
   },
-  "runtime": { "state_dir": "/var/lib/univpn", "run_dir": "/run/univpn" },
+  "runtime": { "state_dir": "/var/lib/uni-next", "run_dir": "/run/uni-next" },
   "logging": { "level": "info", "format": "text" }
 }

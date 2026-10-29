@@ -9,15 +9,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/seeker/univpn/internal/config"
-	"github.com/seeker/univpn/internal/network"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/network"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
 func TestLeaseLifecycleInIsolatedNamespace(t *testing.T) {
-	if os.Getenv("UNIVPN_TEST_NET_ADMIN") != "1" {
-		t.Skip("set UNIVPN_TEST_NET_ADMIN=1 only inside an isolated network namespace")
+	if os.Getenv("UNI_NEXT_TEST_NET_ADMIN") != "1" {
+		t.Skip("set UNI_NEXT_TEST_NET_ADMIN=1 only inside an isolated network namespace")
 	}
 	if os.Geteuid() != 0 {
 		t.Skip("isolated network lifecycle test requires root")

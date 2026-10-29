@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"slices"
 
-	"github.com/seeker/univpn/internal/config"
-	protocol "github.com/seeker/univpn/internal/protocol/univpn"
+	"github.com/seeker/uni-next/internal/config"
+	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
 )
 
 type Plan struct {

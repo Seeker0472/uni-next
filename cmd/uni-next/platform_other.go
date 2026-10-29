@@ -8,6 +8,6 @@ import (
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "univpn only supports Linux")
+	fmt.Fprintln(os.Stderr, "uni-next only supports Linux")
 	os.Exit(22)
 }

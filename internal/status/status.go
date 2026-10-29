@@ -18,10 +18,12 @@ type Snapshot struct {
 	ProcessStart   string    `json:"process_start"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Phase          string    `json:"phase"`
+	Mode           string    `json:"mode"`
 	Generation     uint64    `json:"generation"`
 	VIP            string    `json:"vip,omitempty"`
 	Routes         []string  `json:"routes,omitempty"`
 	SocksReady     bool      `json:"socks_ready"`
+	HTTPReady      bool      `json:"http_ready"`
 	LastHeartbeat  time.Time `json:"last_heartbeat,omitempty"`
 	Reconnects     uint64    `json:"reconnects"`
 	LastErrorCode  string    `json:"last_error_code,omitempty"`

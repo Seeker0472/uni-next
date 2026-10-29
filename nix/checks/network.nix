@@ -3,7 +3,7 @@
 let
   package = pkgs.callPackage ../package.nix { };
   testBinaries = pkgs.buildGoModule {
-    pname = "univpn-network-tests";
+    pname = "uni-next-network-tests";
     version = "0.1.0";
     src = import ../source.nix { inherit lib; };
     vendorHash = import ../vendor-hash.nix { inherit lib; };
@@ -25,7 +25,7 @@ let
   };
 in
 pkgs.testers.runNixOSTest {
-  name = "univpn-isolated-network";
+  name = "uni-next-isolated-network";
   nodes.machine =
     { lib, ... }:
     {
@@ -34,28 +34,28 @@ pkgs.testers.runNixOSTest {
         "tun"
         "nf_conntrack"
       ];
-      services.univpn = {
+      services.uni-next = {
         enable = true;
         inherit package;
         openFirewall = true;
         credentials = {
-          vpnPasswordFile = "/run/keys/univpn-password";
-          logoutUserIDFile = "/run/keys/univpn-user-id";
+          vpnPasswordFile = "/run/keys/uni-next-password";
+          logoutUserIDFile = "/run/keys/uni-next-user-id";
         };
         settings = import ./settings.nix;
       };
-      systemd.services.univpn.wantedBy = lib.mkForce [ ];
+      systemd.services.uni-next.wantedBy = lib.mkForce [ ];
     };
   testScript = ''
     machine.start()
     machine.succeed("test \"$(sysctl -n net.ipv4.ip_forward)\" = 1")
-    nft = machine.wait_until_succeeds("nft list chain inet univpn-mss forward")
+    nft = machine.wait_until_succeeds("nft list chain inet uni-next-mss forward")
     assert "tcp option maxseg size set rt mtu" in nft, nft
     protocol = machine.succeed("${testBinaries}/bin/protocol.test -test.v -test.run '^TestClientCompletesVerifiedLocalProtocolExchange$'")
     assert "--- PASS: TestClientCompletesVerifiedLocalProtocolExchange" in protocol, protocol
     socks = machine.succeed("${testBinaries}/bin/socks5.test -test.v -test.run '^TestServerRelaysAuthorizedTCPAndUDP$'")
     assert "--- PASS: TestServerRelaysAuthorizedTCPAndUDP" in socks, socks
-    network = machine.succeed("UNIVPN_TEST_NET_ADMIN=1 ${testBinaries}/bin/network-linux.test -test.v -test.run '^TestLeaseLifecycleInIsolatedNamespace$'")
+    network = machine.succeed("UNI_NEXT_TEST_NET_ADMIN=1 ${testBinaries}/bin/network-linux.test -test.v -test.run '^TestLeaseLifecycleInIsolatedNamespace$'")
     assert "--- PASS: TestLeaseLifecycleInIsolatedNamespace" in network, network
   '';
 }

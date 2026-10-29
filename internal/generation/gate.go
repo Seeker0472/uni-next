@@ -3,10 +3,16 @@ package generation
 import (
 	"context"
 	"errors"
+	"net"
 	"net/netip"
 	"slices"
 	"sync"
 )
+
+type Egress interface {
+	DialTCP(context.Context, netip.AddrPort) (net.Conn, error)
+	ListenUDP() (net.PacketConn, error)
+}
 
 type Generation struct {
 	ID        uint64
@@ -14,6 +20,7 @@ type Generation struct {
 	VIP       netip.Addr
 	Routes    []netip.Prefix
 	Interface string
+	Egress    Egress
 }
 
 type Gate struct {

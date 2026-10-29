@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "server": { "host": "192.0.2.10", "port": 9443 },
+  "auth": {
+    "username": "vpn-user@example",
+    "mac": "02:00:00:00:00:01"
+  },
+  "tls": {
+    "spki_sha256": ["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="]
+  },
+  "network": {
+    "allowed_routes": ["10.19.20.0/24"]
+  },
+  "socks": {
+    "enabled": true,
+    "listeners": ["127.0.0.1:1080"],
+    "allow_loopback_no_auth": true,
+    "allowed_destinations": ["10.19.20.0/24"]
+  },
+  "http": {
+    "enabled": true,
+    "listeners": ["127.0.0.1:8080"],
+    "allowed_destinations": ["10.19.20.0/24"]
+  }
+}

@@ -1,10 +1,10 @@
 # Recovery and cleanup
 
-The process writes `/var/lib/univpn/network-state.json` after acquiring each owned network resource. The journal contains only resource identifiers: no password, token, or session ID.
+The process writes `/var/lib/uni-next/network-state.json` after acquiring each owned network resource. The journal contains only resource identifiers: no password, token, or session ID.
 
 On clean shutdown it removes active routes and VIP state, deletes narrowly matched old-VIP conntrack entries, removes policy rules and unreachable guards, deletes its owned TUN, and finally removes the journal.
 
-On startup it acquires `/run/univpn/instance.lock`, reads the journal, verifies the TUN alias contains the journal's random ownership ID, and removes the exact recorded routes and rules. It refuses to delete a same-named interface with a different alias.
+On startup it acquires `/run/uni-next/instance.lock`, reads the journal, verifies the TUN alias contains the journal's random ownership ID, and removes the exact recorded routes and rules. It refuses to delete a same-named interface with a different alias.
 
 ## Failure cases
 
@@ -16,11 +16,11 @@ On startup it acquires `/run/univpn/instance.lock`, reads the journal, verifies 
 Useful read-only diagnostics:
 
 ```console
-ip -d link show univpn0
+ip -d link show uni-next0
 ip -4 rule show
 ip -4 route show table 20000
-cat /var/lib/univpn/network-state.json
-univpn status --run-dir /run/univpn --json
+cat /var/lib/uni-next/network-state.json
+uni-next status --run-dir /run/uni-next --json
 ```
 
 Do not flush all policy rules, routes, nftables, or conntrack state. That can break NetBird and unrelated host traffic.

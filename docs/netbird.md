@@ -1,16 +1,16 @@
 # NetBird routing-peer integration
 
-The UniVPN host must run a NetBird peer. Running only the NetBird management server does not create a data-plane routing peer.
+The uni-next host must run a NetBird peer. Running only the NetBird management server does not create a data-plane routing peer.
 
 1. Create a NetBird Network with one resource for each intended UniVPN CIDR.
-2. Assign the UniVPN host peer as the routing peer.
+2. Assign the uni-next host peer as the routing peer.
 3. Keep masquerade enabled. The company network normally has no return route for NetBird overlay addresses.
 4. Grant access from explicit user/device groups to those resources.
 5. Do not publish `0.0.0.0/0`; this client shares only UniVPN internal routes, not the host's public internet connection.
 6. To expose SOCKS on the host's NetBird address, add a separate peer-to-peer policy for the TCP listener and configured UDP relay range. Routed resources use FORWARD policy; the host SOCKS service uses INPUT policy.
 7. Configure `gateway.mode = "netbird"`, the real NetBird interface, the account's actual overlay CIDR, and the exact exported CIDRs.
 
-The program installs unreachable policy routes before login. During reconnect, local and forwarded packets for configured protected CIDRs terminate there instead of falling through to the physical default route. NetBird owns its forwarding authorization and masquerade rules; univpn does not flush or replace them.
+The program installs unreachable policy routes before login. During reconnect, local and forwarded packets for configured protected CIDRs terminate there instead of falling through to the physical default route. NetBird owns its forwarding authorization and masquerade rules; uni-next does not flush or replace them.
 
 ## Non-NixOS host integration
 
@@ -19,10 +19,10 @@ The host administrator must enable IPv4 forwarding, authorize only the intended 
 Equivalent nftables MSS clamping, with every placeholder replaced by the deployed values:
 
 ```nft
-table inet univpn-mss {
+table inet uni-next-mss {
   chain forward {
     type filter hook forward priority mangle; policy accept;
-    iifname "wt0" oifname "univpn0" ip saddr { 100.64.0.0/10 } ip daddr { 10.19.20.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+    iifname "wt0" oifname "uni-next0" ip saddr { 100.64.0.0/10 } ip daddr { 10.19.20.0/24 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
   }
 }
 ```

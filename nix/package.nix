@@ -1,13 +1,13 @@
 { lib, buildGoModule }:
 
 buildGoModule {
-  pname = "univpn";
+  pname = "uni-next";
   version = "0.1.0";
 
   src = import ./source.nix { inherit lib; };
 
   vendorHash = import ./vendor-hash.nix { inherit lib; };
-  subPackages = [ "cmd/univpn" ];
+  subPackages = [ "cmd/uni-next" ];
 
   ldflags = [
     "-s"
@@ -18,8 +18,8 @@ buildGoModule {
   doCheck = true;
 
   meta = {
-    description = "Linux client for the verified Huawei UniVPN CNEM base profile";
-    mainProgram = "univpn";
+    description = "uni-next Linux client for the verified Huawei UniVPN profile";
+    mainProgram = "uni-next";
     platforms = lib.platforms.linux;
   };
 }

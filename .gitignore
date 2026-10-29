@@ -1,7 +1,7 @@
 /result
 /.direnv
 /.envrc
-/univpn
+/uni-next
 /*.test
 /coverage.out
 /*.key

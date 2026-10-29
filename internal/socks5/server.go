@@ -5,30 +5,29 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
-	"fmt"
-	"io"
 	"net"
 	"net/netip"
 	"slices"
 	"sync"
 	"time"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
-	genstate "github.com/seeker/univpn/internal/generation"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
+	genstate "github.com/seeker/uni-next/internal/generation"
+	"github.com/seeker/uni-next/internal/proxy"
 )
 
 type Server struct {
-	cfg                 config.Socks
-	gate                *genstate.Gate
-	password            []byte
-	allowedSources      []netip.Prefix
-	allowedDestinations []netip.Prefix
-	sem                 chan struct{}
-	udpSem              chan struct{}
-	mu                  sync.Mutex
-	perSource           map[netip.Addr]int
-	handlers            sync.WaitGroup
+	cfg            config.Socks
+	gate           *genstate.Gate
+	password       []byte
+	allowedSources []netip.Prefix
+	policy         *proxy.Policy
+	sem            chan struct{}
+	udpSem         chan struct{}
+	mu             sync.Mutex
+	perSource      map[netip.Addr]int
+	handlers       sync.WaitGroup
 }
 
 func New(cfg config.Config, password []byte, gate *genstate.Gate) (*Server, error) {
@@ -36,15 +35,11 @@ func New(cfg config.Config, password []byte, gate *genstate.Gate) (*Server, erro
 	if err != nil {
 		return nil, err
 	}
-	destinationValues := cfg.Socks.AllowedDestinations
-	if len(destinationValues) == 0 {
-		destinationValues = cfg.Network.AllowedRoutes
-	}
-	destinations, err := prefixes(destinationValues)
+	policy, err := proxy.NewPolicy(cfg.Socks.AllowedDestinations, cfg.Network.AllowedRoutes)
 	if err != nil {
 		return nil, err
 	}
-	return &Server{cfg: cfg.Socks, gate: gate, password: slices.Clone(password), allowedSources: sources, allowedDestinations: destinations, sem: make(chan struct{}, cfg.Socks.MaxTCPConnections), udpSem: make(chan struct{}, cfg.Socks.UDP.MaxAssociations), perSource: make(map[netip.Addr]int)}, nil
+	return &Server{cfg: cfg.Socks, gate: gate, password: slices.Clone(password), allowedSources: sources, policy: policy, sem: make(chan struct{}, cfg.Socks.MaxTCPConnections), udpSem: make(chan struct{}, cfg.Socks.UDP.MaxAssociations), perSource: make(map[netip.Addr]int)}, nil
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -214,15 +209,9 @@ func (s *Server) connect(parent context.Context, client net.Conn, target address
 		_ = writeReply(client, 1, netip.AddrPort{})
 		return err
 	}
-	ctx, cancel := linkedContext(parent, generation.Context)
+	ctx, cancel := proxy.LinkedContext(parent, generation.Context)
 	defer cancel()
-	destination, err := s.resolveAuthorized(ctx, generation, target)
-	if err != nil {
-		_ = writeReply(client, 2, netip.AddrPort{})
-		return err
-	}
-	dialer := net.Dialer{Timeout: s.cfg.DialTimeout.Duration, LocalAddr: &net.TCPAddr{IP: net.IP(generation.VIP.AsSlice())}}
-	upstream, err := dialer.DialContext(ctx, "tcp4", destination.String())
+	upstream, err := s.policy.Dial(ctx, generation, target.host, target.port, s.cfg.DialTimeout.Duration)
 	if err != nil {
 		_ = writeReply(client, replyFor(err), netip.AddrPort{})
 		return err
@@ -232,46 +221,11 @@ func (s *Server) connect(parent context.Context, client net.Conn, target address
 	if err := writeReply(client, 0, bound); err != nil {
 		return err
 	}
-	return relayTCP(ctx, client, upstream, s.cfg.TCPIdleTimeout.Duration)
+	return proxy.RelayTCP(ctx, client, upstream, s.cfg.TCPIdleTimeout.Duration)
 }
 
 func (s *Server) resolveAuthorized(ctx context.Context, generation genstate.Generation, target address) (netip.AddrPort, error) {
-	if target.port == 0 {
-		return netip.AddrPort{}, errors.New("target port is zero")
-	}
-	var candidates []netip.Addr
-	if parsed, err := netip.ParseAddr(target.host); err == nil {
-		if !parsed.Is4() {
-			return netip.AddrPort{}, errors.New("IPv6 target is unsupported")
-		}
-		candidates = []netip.Addr{parsed}
-	} else {
-		values, err := net.DefaultResolver.LookupNetIP(ctx, "ip4", target.host)
-		if err != nil {
-			return netip.AddrPort{}, err
-		}
-		for _, value := range values {
-			if value.Is4() {
-				candidates = append(candidates, value)
-			}
-		}
-	}
-	if len(candidates) == 0 {
-		return netip.AddrPort{}, errors.New("target has no IPv4 address")
-	}
-	for _, candidate := range candidates {
-		if !s.destinationAllowed(candidate, generation.Routes) {
-			return netip.AddrPort{}, fmt.Errorf("target %s is outside active VPN routes", candidate)
-		}
-	}
-	return netip.AddrPortFrom(candidates[0], target.port), nil
-}
-
-func (s *Server) destinationAllowed(address netip.Addr, active []netip.Prefix) bool {
-	if !address.Is4() || address.IsLoopback() || address.IsMulticast() || address.IsUnspecified() {
-		return false
-	}
-	return containsIP(s.allowedDestinations, address) && containsIP(active, address)
+	return s.policy.Resolve(ctx, generation, target.host, target.port)
 }
 
 func (s *Server) sourceAllowed(address netip.Addr) bool {
@@ -323,57 +277,6 @@ func (s *Server) release(source netip.Addr) {
 	}
 	s.mu.Unlock()
 	<-s.sem
-}
-
-func linkedContext(left, right context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(left)
-	stop := context.AfterFunc(right, cancel)
-	return ctx, func() { stop(); cancel() }
-}
-
-func relayTCP(ctx context.Context, left, right net.Conn, idle time.Duration) error {
-	type closeWriter interface{ CloseWrite() error }
-	errorsCh := make(chan error, 2)
-	copyDirection := func(destination, source net.Conn) {
-		_, err := io.CopyBuffer(activityWriter{Conn: destination, idle: idle}, activityReader{Conn: source, idle: idle}, make([]byte, 32<<10))
-		if value, ok := destination.(closeWriter); ok {
-			_ = value.CloseWrite()
-		}
-		errorsCh <- err
-	}
-	go copyDirection(right, left)
-	go copyDirection(left, right)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case first := <-errorsCh:
-		second := <-errorsCh
-		return errors.Join(first, second)
-	}
-}
-
-type activityReader struct {
-	net.Conn
-	idle time.Duration
-}
-
-func (c activityReader) Read(value []byte) (int, error) {
-	if c.idle > 0 {
-		_ = c.SetReadDeadline(time.Now().Add(c.idle))
-	}
-	return c.Conn.Read(value)
-}
-
-type activityWriter struct {
-	net.Conn
-	idle time.Duration
-}
-
-func (c activityWriter) Write(value []byte) (int, error) {
-	if c.idle > 0 {
-		_ = c.SetWriteDeadline(time.Now().Add(c.idle))
-	}
-	return c.Conn.Write(value)
 }
 
 func replyFor(err error) byte {

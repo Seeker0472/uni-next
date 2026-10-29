@@ -7,6 +7,6 @@ import "errors"
 type InstanceLock struct{}
 
 func AcquireLock(string) (*InstanceLock, error) {
-	return nil, errors.New("univpn is only supported on Linux")
+	return nil, errors.New("uni-next is only supported on Linux")
 }
 func (*InstanceLock) Close() error { return nil }

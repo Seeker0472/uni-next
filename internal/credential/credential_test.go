@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/seeker/univpn/internal/config"
+	"github.com/seeker/uni-next/internal/config"
 )
 
 func TestLoadUsesSystemdCredentialsAndClearsSecrets(t *testing.T) {

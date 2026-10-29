@@ -9,7 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	genstate "github.com/seeker/univpn/internal/generation"
+	genstate "github.com/seeker/uni-next/internal/generation"
+	proxycore "github.com/seeker/uni-next/internal/proxy"
 )
 
 func (s *Server) udpAssociate(parent context.Context, control net.Conn, sourceIP netip.Addr, requested address) error {
@@ -18,7 +19,7 @@ func (s *Server) udpAssociate(parent context.Context, control net.Conn, sourceIP
 		_ = writeReply(control, 1, netip.AddrPort{})
 		return err
 	}
-	ctx, cancel := linkedContext(parent, generation.Context)
+	ctx, cancel := proxycore.LinkedContext(parent, generation.Context)
 	defer cancel()
 	local, ok := addrPort(control.LocalAddr())
 	if !ok || !local.Addr().Is4() {
@@ -31,7 +32,11 @@ func (s *Server) udpAssociate(parent context.Context, control net.Conn, sourceIP
 		return err
 	}
 	defer relay.Close()
-	upstream, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IP(generation.VIP.AsSlice())})
+	if generation.Egress == nil {
+		_ = writeReply(control, 1, netip.AddrPort{})
+		return errors.New("VPN generation has no egress")
+	}
+	upstream, err := generation.Egress.ListenUDP()
 	if err != nil {
 		_ = writeReply(control, 1, netip.AddrPort{})
 		return err
@@ -77,7 +82,7 @@ type udpAssociation struct {
 	server       *Server
 	generation   genstate.Generation
 	relay        *net.UDPConn
-	upstream     *net.UDPConn
+	upstream     net.PacketConn
 	sourceIP     netip.Addr
 	client       netip.AddrPort
 	clientMu     sync.RWMutex
@@ -116,7 +121,7 @@ func (a *udpAssociation) clientLoop(ctx context.Context) error {
 		if !a.allowRemote(destination) {
 			continue
 		}
-		if _, err := a.upstream.WriteToUDPAddrPort(payload, destination); err != nil {
+		if _, err := a.upstream.WriteTo(payload, net.UDPAddrFromAddrPort(destination)); err != nil {
 			return err
 		}
 		a.lastActivity.Store(time.Now().UnixNano())
@@ -130,7 +135,7 @@ func (a *udpAssociation) remoteLoop(ctx context.Context) error {
 		if err := a.upstream.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 			return err
 		}
-		count, source, err := a.upstream.ReadFromUDPAddrPort(buffer)
+		count, rawSource, err := a.upstream.ReadFrom(buffer)
 		if timeout(err) {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -139,6 +144,10 @@ func (a *udpAssociation) remoteLoop(ctx context.Context) error {
 		}
 		if err != nil {
 			return err
+		}
+		source, ok := addrPort(rawSource)
+		if !ok {
+			continue
 		}
 		a.remotesMu.RLock()
 		_, allowed := a.remotes[source]

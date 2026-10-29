@@ -5,31 +5,48 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
-	"github.com/seeker/univpn/internal/credential"
-	genstate "github.com/seeker/univpn/internal/generation"
-	"github.com/seeker/univpn/internal/network"
-	networklinux "github.com/seeker/univpn/internal/network/linux"
-	"github.com/seeker/univpn/internal/packet"
-	protocol "github.com/seeker/univpn/internal/protocol/univpn"
-	"github.com/seeker/univpn/internal/socks5"
-	"github.com/seeker/univpn/internal/status"
-	"github.com/seeker/univpn/internal/transport"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/credential"
+	genstate "github.com/seeker/uni-next/internal/generation"
+	"github.com/seeker/uni-next/internal/httpproxy"
+	"github.com/seeker/uni-next/internal/network"
+	networklinux "github.com/seeker/uni-next/internal/network/linux"
+	"github.com/seeker/uni-next/internal/packet"
+	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
+	"github.com/seeker/uni-next/internal/socks5"
+	"github.com/seeker/uni-next/internal/status"
+	"github.com/seeker/uni-next/internal/transport"
+	"github.com/seeker/uni-next/internal/usernet"
+)
+
+type Mode string
+
+const (
+	ModeSystem Mode = "system"
+	ModeProxy  Mode = "proxy"
 )
 
 type Runtime struct {
 	Config      config.Config
 	Credentials credential.Values
 	Logger      *slog.Logger
+	Mode        Mode
 }
 
 func (r Runtime) Run(ctx context.Context) (returnErr error) {
 	logger := r.Logger
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if r.Mode == "" {
+		r.Mode = ModeSystem
+	}
+	if r.Mode != ModeSystem && r.Mode != ModeProxy {
+		return apperr.New(apperr.CodeConfig, "preflight", apperr.RetryNever, "unsupported runtime mode")
 	}
 	lock, err := AcquireLock(r.Config.Runtime.RunDir)
 	if err != nil {
@@ -41,17 +58,32 @@ func (r Runtime) Run(ctx context.Context) (returnErr error) {
 		}
 	}()
 	store := status.NewStore(r.Config.Runtime.RunDir)
-	updateStatus(logger, store, func(value *status.Snapshot) { value.Phase = "preflight" })
-	protected, err := network.ProtectionPlan(r.Config)
-	if err != nil {
-		return apperr.Wrap(apperr.CodeConfig, "preflight", apperr.RetryNever, "build protection plan", err)
-	}
-	lease, err := networklinux.Prepare(ctx, r.Config, protected)
-	if err != nil {
-		return err
+	updateStatus(logger, store, func(value *status.Snapshot) {
+		value.Phase = "preflight"
+		value.Mode = string(r.Mode)
+	})
+	var lease network.Lease
+	if r.Mode == ModeProxy {
+		if err := r.Config.ValidateProxyMode(); err != nil {
+			return apperr.Wrap(apperr.CodeConfig, "preflight", apperr.RetryNever, "invalid proxy mode configuration", err)
+		}
+		lease = usernet.New(r.Config.Network.MTU)
+	} else {
+		protected, err := network.ProtectionPlan(r.Config)
+		if err != nil {
+			return apperr.Wrap(apperr.CodeConfig, "preflight", apperr.RetryNever, "build protection plan", err)
+		}
+		lease, err = networklinux.Prepare(ctx, r.Config, protected)
+		if err != nil {
+			return err
+		}
 	}
 	defer func() {
-		updateStatus(logger, store, func(value *status.Snapshot) { value.Phase = "stopping"; value.SocksReady = false })
+		updateStatus(logger, store, func(value *status.Snapshot) {
+			value.Phase = "stopping"
+			value.SocksReady = false
+			value.HTTPReady = false
+		})
 		if closeErr := lease.Close(); closeErr != nil {
 			if returnErr == nil {
 				returnErr = closeErr
@@ -67,41 +99,50 @@ func (r Runtime) Run(ctx context.Context) (returnErr error) {
 	}
 	client := protocol.NewClient(r.Config, dialer.Dial)
 	gate := &genstate.Gate{}
-	proxy, err := socks5.New(r.Config, r.Credentials.SocksPassword, gate)
+	socksProxy, err := socks5.New(r.Config, r.Credentials.SocksPassword, gate)
 	if err != nil {
 		return apperr.Wrap(apperr.CodeConfig, "socks", apperr.RetryNever, "initialize SOCKS server", err)
 	}
+	httpProxy, err := httpproxy.New(r.Config, gate)
+	if err != nil {
+		return apperr.Wrap(apperr.CodeConfig, "http", apperr.RetryNever, "initialize HTTP proxy", err)
+	}
 	runCtx, cancel := context.WithCancel(ctx)
-	socksErr := make(chan error, 1)
-	socksDone := make(chan struct{})
+	serviceErr := make(chan error, 2)
+	var services sync.WaitGroup
+	startService := func(stage string, run func(context.Context) error) {
+		services.Add(1)
+		go func() {
+			defer services.Done()
+			if err := run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
+				select {
+				case serviceErr <- apperr.Wrap(apperr.CodeConfig, stage, apperr.RetryNever, stage+" service stopped", err):
+				default:
+				}
+				cancel()
+			}
+		}()
+	}
+	startService("socks", socksProxy.Run)
+	startService("http", httpProxy.Run)
 	defer func() {
 		cancel()
-		<-socksDone
-	}()
-	go func() {
-		defer close(socksDone)
-		err := proxy.Run(runCtx)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			socksErr <- err
-			cancel()
-		} else {
-			socksErr <- nil
-		}
+		services.Wait()
 	}()
 	budget := NewKickoutBudget(r.Config.Reconnect.Kickout.Mode, r.Config.Reconnect.Kickout.Window.Duration, r.Config.Reconnect.Kickout.MaxRetries)
 	backoff := NewBackoff(r.Config.Reconnect.Initial.Duration, r.Config.Reconnect.Maximum.Duration)
 	var generation uint64
 	for {
 		if err := runCtx.Err(); err != nil {
-			if proxyErr := nonblockingError(socksErr); proxyErr != nil {
-				return apperr.Wrap(apperr.CodeConfig, "socks", apperr.RetryNever, "SOCKS service stopped", proxyErr)
+			if proxyErr := nonblockingError(serviceErr); proxyErr != nil {
+				return proxyErr
 			}
 			return apperr.New(apperr.CodeCanceled, "shutdown", apperr.RetryNever, "shutdown requested")
 		}
 		result := r.runGeneration(runCtx, client, lease, gate, store, logger, generation+1)
 		generation++
-		if proxyErr := nonblockingError(socksErr); proxyErr != nil {
-			return apperr.Wrap(apperr.CodeConfig, "socks", apperr.RetryNever, "SOCKS service stopped", proxyErr)
+		if proxyErr := nonblockingError(serviceErr); proxyErr != nil {
+			return proxyErr
 		}
 		if result.Err == nil || errors.Is(result.Err, context.Canceled) {
 			if ctx.Err() != nil {
@@ -178,6 +219,18 @@ func (r Runtime) runGeneration(ctx context.Context, client *protocol.Client, lea
 		r.logout(client, auth)
 		return generationResult{Err: err}
 	}
+	egress := genstate.Egress(kernelEgress{vip: plan.VIP})
+	if provider, ok := lease.(interface {
+		Egress() (genstate.Egress, error)
+	}); ok {
+		egress, err = provider.Egress()
+		if err != nil {
+			_ = lease.Suspend(context.Background())
+			negotiated.Connection.Close()
+			r.logout(client, auth)
+			return generationResult{Err: apperr.Wrap(apperr.CodeNetwork, "netcfg", apperr.RetryNever, "initialize proxy egress", err)}
+		}
+	}
 	generationCtx, generationCancel := context.WithCancel(ctx)
 	ready := make(chan struct{})
 	pump := packet.Pump{Connection: negotiated.Connection, Device: lease.Device(), Session: auth.Session, MTU: r.Config.Network.MTU, HeartbeatInterval: r.Config.Heartbeat.Interval.Duration, HeartbeatTimeout: r.Config.Heartbeat.Timeout.Duration, WriteTimeout: r.Config.Timeouts.Write.Duration, OnHeartbeat: func(at time.Time) {
@@ -189,7 +242,7 @@ func (r Runtime) runGeneration(ctx context.Context, client *protocol.Client, lea
 	select {
 	case <-ready:
 		readySince = time.Now()
-		gate.Set(genstate.Generation{ID: generation, Context: generationCtx, VIP: plan.VIP, Routes: plan.Routes, Interface: lease.Device().Name()})
+		gate.Set(genstate.Generation{ID: generation, Context: generationCtx, VIP: plan.VIP, Routes: plan.Routes, Interface: lease.Device().Name(), Egress: egress})
 		routeStrings := make([]string, len(plan.Routes))
 		for index, route := range plan.Routes {
 			routeStrings[index] = route.String()
@@ -199,6 +252,7 @@ func (r Runtime) runGeneration(ctx context.Context, client *protocol.Client, lea
 			value.VIP = plan.VIP.String()
 			value.Routes = routeStrings
 			value.SocksReady = r.Config.Socks.Enabled
+			value.HTTPReady = r.Config.HTTP.Enabled
 			value.LastError = ""
 			value.LastErrorCode = ""
 			value.LastErrorStage = ""
@@ -228,7 +282,12 @@ func (r Runtime) runGeneration(ctx context.Context, client *protocol.Client, lea
 	generationCancel()
 	negotiated.Connection.Close()
 	setPhase("suspending")
-	updateStatus(logger, store, func(snapshot *status.Snapshot) { snapshot.SocksReady = false; snapshot.VIP = ""; snapshot.Routes = nil })
+	updateStatus(logger, store, func(snapshot *status.Snapshot) {
+		snapshot.SocksReady = false
+		snapshot.HTTPReady = false
+		snapshot.VIP = ""
+		snapshot.Routes = nil
+	})
 	if suspendErr := lease.Suspend(context.Background()); suspendErr != nil {
 		r.logout(client, auth)
 		return generationResult{Err: suspendErr, ReadySince: readySince}
@@ -265,4 +324,4 @@ func nonblockingError(channel <-chan error) error {
 	}
 }
 
-func (r Runtime) String() string { return fmt.Sprintf("univpn runtime for %s", r.Config.Server.Host) }
+func (r Runtime) String() string { return fmt.Sprintf("uni-next runtime for %s", r.Config.Server.Host) }

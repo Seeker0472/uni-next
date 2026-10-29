@@ -4,8 +4,8 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/seeker/univpn/internal/config"
-	protocol "github.com/seeker/univpn/internal/protocol/univpn"
+	"github.com/seeker/uni-next/internal/config"
+	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
 )
 
 func TestBuildPlanIntersectsServerAndOperatorRoutes(t *testing.T) {

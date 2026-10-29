@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
 	"golang.org/x/term"
 )
 

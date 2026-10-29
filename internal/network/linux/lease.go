@@ -15,9 +15,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
-	"github.com/seeker/univpn/internal/network"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/network"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -80,7 +80,7 @@ func Prepare(ctx context.Context, cfg config.Config, protected []netip.Prefix) (
 	if err != nil {
 		return nil, networkError("prepare", "find created TUN device", err)
 	}
-	if err := netlink.LinkSetAlias(link, "univpn:"+owner); err != nil {
+	if err := netlink.LinkSetAlias(link, "uni-next:"+owner); err != nil {
 		return nil, networkError("prepare", "mark TUN ownership", err)
 	}
 	if err := lease.writeJournal(); err != nil {
@@ -440,7 +440,7 @@ func ipNet(prefix netip.Prefix) *net.IPNet {
 	return &net.IPNet{IP: net.IP(prefix.Addr().AsSlice()), Mask: net.CIDRMask(bits, 32)}
 }
 func verifyAlias(link netlink.Link, owner string) error {
-	if link.Attrs().Alias != "univpn:"+owner {
+	if link.Attrs().Alias != "uni-next:"+owner {
 		return fmt.Errorf("interface %s is not owned by this transaction", link.Attrs().Name)
 	}
 	return nil

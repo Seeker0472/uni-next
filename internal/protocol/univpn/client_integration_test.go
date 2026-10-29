@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seeker/univpn/internal/config"
-	"github.com/seeker/univpn/internal/transport"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/transport"
 )
 
 func TestClientCompletesVerifiedLocalProtocolExchange(t *testing.T) {

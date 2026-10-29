@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
 )
 
 type DialFunc func(context.Context) (net.Conn, error)

@@ -4,35 +4,35 @@
 
 ```nix
 {
-  inputs.univpn = {
-    url = "path:/path/to/univpn";
+  inputs.uni-next = {
+    url = "path:/path/to/uni-next";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 }
 ```
 
-Import `inputs.univpn.nixosModules.default` in the target NixOS configuration. Credential option values are runtime path strings. Do not use `builtins.readFile`, `pkgs.writeText`, or literal secret values: those copy secrets into `/nix/store`.
+Import `inputs.uni-next.nixosModules.default` in the target NixOS configuration. Credential option values are runtime path strings. Do not use `builtins.readFile`, `pkgs.writeText`, or literal secret values: those copy secrets into `/nix/store`.
 
 A minimal split-tunnel service:
 
 ```nix
 { inputs, pkgs, ... }: {
-  imports = [ inputs.univpn.nixosModules.default ];
+  imports = [ inputs.uni-next.nixosModules.default ];
 
-  services.univpn = {
+  services.uni-next = {
     enable = true;
-    package = inputs.univpn.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    package = inputs.uni-next.packages.${pkgs.stdenv.hostPlatform.system}.default;
     credentials = {
-      vpnPasswordFile = "/run/secrets/univpn-password";
-      logoutUserIDFile = "/run/secrets/univpn-logout-user-id";
-      socksPasswordFile = "/run/secrets/univpn-socks-password";
+      vpnPasswordFile = "/run/secrets/uni-next-password";
+      logoutUserIDFile = "/run/secrets/uni-next-logout-user-id";
+      socksPasswordFile = "/run/secrets/uni-next-socks-password";
     };
-    settings = builtins.fromJSON (builtins.readFile ./univpn.json);
+    settings = builtins.fromJSON (builtins.readFile ./uni-next.json);
   };
 }
 ```
 
-`univpn.json` must contain no secrets. It may reside in the Nix store. SPKI pins are public identifiers and may be stored declaratively after they have been verified through a trusted channel.
+`uni-next.json` must contain no secrets. It may reside in the Nix store. SPKI pins are public identifiers and may be stored declaratively after they have been verified through a trusted channel.
 
 The service receives only `CAP_NET_ADMIN`, `/dev/net/tun`, bounded writable state directories, and required address families. Exit codes 20–25 are excluded from systemd restart so certificate changes, unsupported protocol responses, resource conflicts, or exhausted KICKOUT policy do not form restart loops.
 

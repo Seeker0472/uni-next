@@ -1,5 +1,5 @@
 {
-  description = "Maintainable Go client for a verified Huawei UniVPN profile";
+  description = "uni-next: Go client for a verified Huawei UniVPN profile";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -16,8 +16,8 @@
           pkgs = import nixpkgs { inherit system; };
         in
         rec {
-          univpn = pkgs.callPackage ./nix/package.nix { };
-          default = univpn;
+          uni-next = pkgs.callPackage ./nix/package.nix { };
+          default = uni-next;
         }
       );
 
@@ -27,7 +27,7 @@
           pkgs = import nixpkgs { inherit system; };
         in
         {
-          package = self.packages.${system}.univpn;
+          package = self.packages.${system}.uni-next;
           module = pkgs.callPackage ./nix/checks/module.nix { inherit (nixpkgs.lib) nixosSystem; };
           isolated-network = pkgs.callPackage ./nix/checks/network.nix { };
         }

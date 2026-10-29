@@ -106,6 +106,9 @@ func (c Config) Validate() error {
 	if err := c.validateSocks(allowed); err != nil {
 		return err
 	}
+	if err := c.validateHTTP(allowed); err != nil {
+		return err
+	}
 	if err := c.validateGateway(allowed); err != nil {
 		return err
 	}
@@ -208,6 +211,62 @@ func (c Config) validateSocks(allowed []netip.Prefix) error {
 		}
 		if c.Socks.UDP.MaxRemotesPerAssociation <= 0 || c.Socks.UDP.IdleTimeout.Duration <= 0 {
 			return fmt.Errorf("socks.udp limits must be positive")
+		}
+	}
+	return nil
+}
+
+func (c Config) validateHTTP(allowed []netip.Prefix) error {
+	if !c.HTTP.Enabled {
+		return nil
+	}
+	if len(c.HTTP.Listeners) == 0 {
+		return fmt.Errorf("http.listeners: must not be empty when enabled")
+	}
+	seen := make(map[netip.AddrPort]struct{})
+	for i, raw := range c.HTTP.Listeners {
+		address, err := netip.ParseAddrPort(raw)
+		if err != nil || !address.Addr().Is4() || !address.Addr().IsLoopback() {
+			return fmt.Errorf("http.listeners[%d]: must be an explicit IPv4 loopback address and port", i)
+		}
+		if _, duplicate := seen[address]; duplicate {
+			return fmt.Errorf("http.listeners[%d]: duplicate listener", i)
+		}
+		seen[address] = struct{}{}
+	}
+	destinations, err := parsePrefixes("http.allowed_destinations", c.HTTP.AllowedDestinations, true)
+	if err != nil {
+		return err
+	}
+	if len(destinations) == 0 {
+		destinations = allowed
+	}
+	for _, destination := range destinations {
+		if !coveredBy(destination, allowed) {
+			return fmt.Errorf("http.allowed_destinations: %s exceeds network.allowed_routes", destination)
+		}
+	}
+	if c.HTTP.MaxConnections <= 0 || c.HTTP.MaxPerSource <= 0 || c.HTTP.MaxPerSource > c.HTTP.MaxConnections {
+		return fmt.Errorf("http connection limits are invalid")
+	}
+	if c.HTTP.ReadHeaderTimeout.Duration <= 0 || c.HTTP.DialTimeout.Duration <= 0 || c.HTTP.IdleTimeout.Duration < 0 {
+		return fmt.Errorf("http timeouts are invalid")
+	}
+	return nil
+}
+
+// ValidateProxyMode enforces the no-host-network-mutation boundary of proxy.
+func (c Config) ValidateProxyMode() error {
+	if c.Gateway.Mode != "off" {
+		return fmt.Errorf("gateway.mode: proxy mode requires off")
+	}
+	if !c.Socks.Enabled && !c.HTTP.Enabled {
+		return fmt.Errorf("proxy mode requires socks.enabled or http.enabled")
+	}
+	for i, raw := range c.Socks.Listeners {
+		address, err := netip.ParseAddrPort(raw)
+		if c.Socks.Enabled && (err != nil || !address.Addr().IsLoopback()) {
+			return fmt.Errorf("socks.listeners[%d]: proxy mode permits loopback listeners only", i)
 		}
 	}
 	return nil

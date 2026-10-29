@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/seeker/univpn/internal/config"
-	genstate "github.com/seeker/univpn/internal/generation"
+	"github.com/seeker/uni-next/internal/config"
+	genstate "github.com/seeker/uni-next/internal/generation"
 )
 
 func TestServerRelaysAuthorizedTCPAndUDP(t *testing.T) {
@@ -58,7 +58,7 @@ func TestServerRelaysAuthorizedTCPAndUDP(t *testing.T) {
 	gate := &genstate.Gate{}
 	generationCtx, generationCancel := context.WithCancel(context.Background())
 	defer generationCancel()
-	gate.Set(genstate.Generation{ID: 1, Context: generationCtx, VIP: host, Routes: []netip.Prefix{prefix}, Interface: "test"})
+	gate.Set(genstate.Generation{ID: 1, Context: generationCtx, VIP: host, Routes: []netip.Prefix{prefix}, Interface: "test", Egress: testEgress{host: host}})
 	server, err := New(cfg, []byte("secret"), gate)
 	if err != nil {
 		t.Fatal(err)
@@ -145,6 +145,19 @@ func nonLoopbackIPv4(t *testing.T) netip.Addr {
 	}
 	t.Skip("no non-loopback IPv4 address")
 	return netip.Addr{}
+}
+
+type testEgress struct {
+	host netip.Addr
+}
+
+func (e testEgress) DialTCP(ctx context.Context, destination netip.AddrPort) (net.Conn, error) {
+	dialer := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.IP(e.host.AsSlice())}}
+	return dialer.DialContext(ctx, "tcp4", destination.String())
+}
+
+func (e testEgress) ListenUDP() (net.PacketConn, error) {
+	return net.ListenUDP("udp4", &net.UDPAddr{IP: net.IP(e.host.AsSlice())})
 }
 func freeTCPPort(t *testing.T) int {
 	t.Helper()

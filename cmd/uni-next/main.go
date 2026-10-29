@@ -14,12 +14,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/config"
-	"github.com/seeker/univpn/internal/credential"
-	"github.com/seeker/univpn/internal/session"
-	"github.com/seeker/univpn/internal/status"
-	"github.com/seeker/univpn/internal/transport"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/credential"
+	"github.com/seeker/uni-next/internal/session"
+	"github.com/seeker/uni-next/internal/status"
+	"github.com/seeker/uni-next/internal/transport"
 )
 
 var version = "development"
@@ -35,12 +35,14 @@ func run(arguments []string) int {
 	switch arguments[0] {
 	case "connect":
 		err = connect(arguments[1:])
+	case "proxy":
+		err = runProxy(arguments[1:])
 	case "check-config":
 		err = checkConfig(arguments[1:])
 	case "status":
 		err = showStatus(arguments[1:])
 	case "version":
-		fmt.Printf("univpn %s\n", version)
+		fmt.Printf("uni-next %s\n", version)
 		return 0
 	case "help", "-h", "--help":
 		usage()
@@ -51,40 +53,55 @@ func run(arguments []string) int {
 		return 20
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "univpn:", err)
+		fmt.Fprintln(os.Stderr, "uni-next:", err)
 	}
 	return apperr.ExitCode(err)
 }
 
 func connect(arguments []string) error {
-	flags := flag.NewFlagSet("connect", flag.ContinueOnError)
-	flags.SetOutput(os.Stderr)
-	configPath := flags.String("config", "", "path to strict JSON configuration")
-	vpnPassword := flags.String("vpn-password-file", "", "runtime VPN password file")
-	logoutUserID := flags.String("logout-user-id-file", "", "runtime logout user ID file")
-	socksPassword := flags.String("socks-password-file", "", "runtime SOCKS password file")
-	if err := flags.Parse(arguments); err != nil {
-		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid arguments", err)
+	options := newRuntimeOptions("connect")
+	cfg, overrides, err := options.parse(arguments, config.Defaults())
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
 	}
-	if *configPath == "" || flags.NArg() != 0 {
-		return apperr.New(apperr.CodeConfig, "cli", apperr.RetryNever, "connect requires --config and no positional arguments")
-	}
-	cfg, err := config.Load(*configPath)
 	if err != nil {
-		return apperr.Wrap(apperr.CodeConfig, "configuration", apperr.RetryNever, err.Error(), err)
+		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid connect configuration", err)
 	}
+	return runSession(cfg, overrides, session.ModeSystem)
+}
+
+func runProxy(arguments []string) error {
+	base, err := proxyDefaults()
+	if err != nil {
+		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "initialize proxy defaults", err)
+	}
+	options := newRuntimeOptions("proxy")
+	cfg, overrides, err := options.parse(arguments, base)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
+	if err != nil {
+		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid proxy configuration", err)
+	}
+	if err := cfg.ValidateProxyMode(); err != nil {
+		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid proxy mode configuration", err)
+	}
+	return runSession(cfg, overrides, session.ModeProxy)
+}
+
+func runSession(cfg config.Config, overrides credential.Overrides, mode session.Mode) error {
 	logger, err := newLogger(cfg)
 	if err != nil {
 		return err
 	}
-	values, err := credential.Load(cfg, credential.Overrides{VPNPasswordFile: *vpnPassword, LogoutUserIDFile: *logoutUserID, SocksPasswordFile: *socksPassword}, os.Stdin, os.Stderr)
+	values, err := credential.Load(cfg, overrides, os.Stdin, os.Stderr)
 	if err != nil {
 		return err
 	}
 	defer values.Clear()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return (session.Runtime{Config: cfg, Credentials: values, Logger: logger}).Run(ctx)
+	return (session.Runtime{Config: cfg, Credentials: values, Logger: logger, Mode: mode}).Run(ctx)
 }
 
 func checkConfig(arguments []string) error {
@@ -92,6 +109,9 @@ func checkConfig(arguments []string) error {
 	flags.SetOutput(os.Stderr)
 	configPath := flags.String("config", "", "path to strict JSON configuration")
 	if err := flags.Parse(arguments); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid arguments", err)
 	}
 	if *configPath == "" || flags.NArg() != 0 {
@@ -111,9 +131,12 @@ func checkConfig(arguments []string) error {
 func showStatus(arguments []string) error {
 	flags := flag.NewFlagSet("status", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	runDir := flags.String("run-dir", "/run/univpn", "runtime status directory")
+	runDir := flags.String("run-dir", "/run/uni-next", "runtime status directory")
 	jsonOutput := flags.Bool("json", false, "print JSON")
 	if err := flags.Parse(arguments); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "invalid arguments", err)
 	}
 	if flags.NArg() != 0 {
@@ -128,7 +151,7 @@ func showStatus(arguments []string) error {
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(snapshot)
 	}
-	fmt.Printf("phase: %s\ngeneration: %d\nVIP: %s\nroutes: %s\nSOCKS ready: %t\nreconnects: %d\n", snapshot.Phase, snapshot.Generation, snapshot.VIP, strings.Join(snapshot.Routes, ", "), snapshot.SocksReady, snapshot.Reconnects)
+	fmt.Printf("mode: %s\nphase: %s\ngeneration: %d\nVIP: %s\nroutes: %s\nSOCKS ready: %t\nHTTP ready: %t\nreconnects: %d\n", snapshot.Mode, snapshot.Phase, snapshot.Generation, snapshot.VIP, strings.Join(snapshot.Routes, ", "), snapshot.SocksReady, snapshot.HTTPReady, snapshot.Reconnects)
 	if snapshot.LastError != "" {
 		fmt.Printf("last error: %s\n", snapshot.LastError)
 	}
@@ -152,5 +175,5 @@ func newLogger(cfg config.Config) (*slog.Logger, error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: univpn <connect|check-config|status|version> [options]")
+	fmt.Fprintln(os.Stderr, "usage: uni-next <connect|proxy|check-config|status|version> [options]")
 }

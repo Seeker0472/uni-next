@@ -12,13 +12,13 @@ let
     mkOption
     types
     ;
-  cfg = config.services.univpn;
+  cfg = config.services.uni-next;
   json = pkgs.formats.json { };
   configFile =
     if hasInlineSecret then
-      throw "services.univpn.settings contains an inline secret"
+      throw "services.uni-next.settings contains an inline secret"
     else
-      json.generate "univpn.json" cfg.settings;
+      json.generate "uni-next.json" cfg.settings;
 
   get = path: fallback: lib.attrByPath path fallback cfg.settings;
   socksEnabled = get [ "socks" "enabled" ] false;
@@ -31,7 +31,7 @@ let
   gatewayInterface = get [ "gateway" "ingress_interface" ] "";
   gatewaySources = get [ "gateway" "source_cidrs" ] [ ];
   gatewayRoutes = get [ "gateway" "export_routes" ] [ ];
-  tunName = get [ "network" "tun_name" ] "univpn0";
+  tunName = get [ "network" "tun_name" ] "uni-next0";
   clampMSS = get [ "gateway" "clamp_tcp_mss" ] true;
 
   parseListener =
@@ -49,11 +49,11 @@ let
 
   tcpFirewallRules = lib.concatMapStringsSep "\n" (
     listener:
-    "ip saddr ${set sources} ip daddr ${listener.address} tcp dport ${toString listener.port} accept comment \"univpn SOCKS TCP\""
+    "ip saddr ${set sources} ip daddr ${listener.address} tcp dport ${toString listener.port} accept comment \"uni-next SOCKS TCP\""
   ) parsedListeners;
   udpFirewallRules = lib.concatMapStringsSep "\n" (
     listener:
-    "ip saddr ${set sources} ip daddr ${listener.address} udp dport ${toString udpFrom}-${toString udpTo} accept comment \"univpn SOCKS UDP\""
+    "ip saddr ${set sources} ip daddr ${listener.address} udp dport ${toString udpFrom}-${toString udpTo} accept comment \"uni-next SOCKS UDP\""
   ) parsedListeners;
 
   credentials = lib.filter (value: value != null) [
@@ -87,17 +87,17 @@ let
     || lib.hasAttrByPath [ "socks" "auth" "password" ] cfg.settings;
 in
 {
-  options.services.univpn = {
-    enable = mkEnableOption "UniVPN Go client";
+  options.services.uni-next = {
+    enable = mkEnableOption "uni-next VPN client";
     package = mkOption {
       type = types.package;
       default = pkgs.callPackage ./package.nix { };
-      description = "UniVPN package to execute.";
+      description = "uni-next package to execute.";
     };
     settings = mkOption {
       type = json.type;
       default = { };
-      description = "Strict JSON-compatible non-secret UniVPN configuration.";
+      description = "Strict JSON-compatible non-secret uni-next configuration.";
     };
     credentials = {
       vpnPasswordFile = mkOption {
@@ -127,11 +127,11 @@ in
     assertions = [
       {
         assertion = cfg.credentials.vpnPasswordFile != null;
-        message = "services.univpn.credentials.vpnPasswordFile is required";
+        message = "services.uni-next.credentials.vpnPasswordFile is required";
       }
       {
         assertion = cfg.credentials.logoutUserIDFile != null;
-        message = "services.univpn.credentials.logoutUserIDFile is required";
+        message = "services.uni-next.credentials.logoutUserIDFile is required";
       }
       {
         assertion =
@@ -142,11 +142,11 @@ in
       }
       {
         assertion = lib.all (value: !(lib.hasPrefix builtins.storeDir value)) credentialPaths;
-        message = "UniVPN credential files must be runtime paths outside the Nix store";
+        message = "uni-next credential files must be runtime paths outside the Nix store";
       }
       {
         assertion = !hasInlineSecret;
-        message = "services.univpn.settings must not contain inline passwords or logout identifiers";
+        message = "services.uni-next.settings must not contain inline passwords or logout identifiers";
       }
       {
         assertion = !cfg.openFirewall || !socksEnabled || sources != [ ];
@@ -171,11 +171,11 @@ in
       }
     ];
 
-    users.groups.univpn = { };
-    users.users.univpn = {
+    users.groups.uni-next = { };
+    users.users.uni-next = {
       isSystemUser = true;
-      group = "univpn";
-      description = "UniVPN client service";
+      group = "uni-next";
+      description = "uni-next VPN client service";
     };
 
     boot.kernel.sysctl = mkIf (gatewayMode == "netbird") {
@@ -191,18 +191,18 @@ in
       ${lib.optionalString udpEnabled udpFirewallRules}
     '';
 
-    networking.nftables.tables."univpn-mss" = mkIf (gatewayMode == "netbird" && clampMSS) {
+    networking.nftables.tables."uni-next-mss" = mkIf (gatewayMode == "netbird" && clampMSS) {
       family = "inet";
       content = ''
         chain forward {
           type filter hook forward priority mangle; policy accept;
-          iifname "${gatewayInterface}" oifname "${tunName}" ip saddr ${set gatewaySources} ip daddr ${set gatewayRoutes} tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu comment "univpn NetBird MSS clamp"
+          iifname "${gatewayInterface}" oifname "${tunName}" ip saddr ${set gatewaySources} ip daddr ${set gatewayRoutes} tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu comment "uni-next NetBird MSS clamp"
         }
       '';
     };
 
-    systemd.services.univpn = {
-      description = "UniVPN Go client";
+    systemd.services.uni-next = {
+      description = "uni-next VPN client";
       wantedBy = [ "multi-user.target" ];
       wants = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") "netbird.service";
       after = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") "netbird.service";
@@ -210,11 +210,11 @@ in
       startLimitBurst = 5;
       serviceConfig = {
         Type = "exec";
-        ExecStart = "${cfg.package}/bin/univpn connect --config ${configFile}";
-        User = "univpn";
-        Group = "univpn";
-        StateDirectory = "univpn";
-        RuntimeDirectory = "univpn";
+        ExecStart = "${cfg.package}/bin/uni-next connect --config ${configFile}";
+        User = "uni-next";
+        Group = "uni-next";
+        StateDirectory = "uni-next";
+        RuntimeDirectory = "uni-next";
         RuntimeDirectoryMode = "0750";
         StateDirectoryMode = "0750";
         LoadCredential = credentials;

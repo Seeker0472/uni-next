@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seeker/univpn/internal/apperr"
+	"github.com/seeker/uni-next/internal/apperr"
 )
 
 const authResponseSize = 166

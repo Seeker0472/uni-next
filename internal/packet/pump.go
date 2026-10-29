@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/seeker/univpn/internal/apperr"
-	"github.com/seeker/univpn/internal/network"
-	protocol "github.com/seeker/univpn/internal/protocol/univpn"
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/network"
+	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
 )
 
 type Pump struct {
@@ -85,10 +85,10 @@ func (p *Pump) readLoop(ctx context.Context, last *atomic.Int64, readyOnce *sync
 			}
 			count, err := p.Device.WriteContext(ctx, frame.Body)
 			if err != nil {
-				return apperr.Wrap(apperr.CodeNetwork, "tun_write", apperr.RetryNever, "write to TUN failed", err)
+				return apperr.Wrap(apperr.CodeNetwork, "packet_device_write", apperr.RetryNever, "write inbound packet to network device", err)
 			}
 			if count != len(frame.Body) {
-				return apperr.New(apperr.CodeNetwork, "tun_write", apperr.RetryNever, "TUN accepted only part of an IPv4 packet")
+				return apperr.New(apperr.CodeNetwork, "packet_device_write", apperr.RetryNever, "network device accepted only part of an IPv4 packet")
 			}
 		case protocol.TypeKeepalive:
 			if len(frame.Body) != 0 {
@@ -116,7 +116,7 @@ func (p *Pump) writeLoop(ctx context.Context, writeFrame func(uint16, []byte) er
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return apperr.Wrap(apperr.CodeNetwork, "tun_read", apperr.RetryNever, "read from TUN failed", err)
+			return apperr.Wrap(apperr.CodeNetwork, "packet_device_read", apperr.RetryNever, "read outbound packet from network device", err)
 		}
 		packet := buffer[:count]
 		if err := ValidateIPv4(packet, p.MTU, true); err != nil {

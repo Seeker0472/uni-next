@@ -24,7 +24,7 @@ func AcquireLock(runDir string) (*InstanceLock, error) {
 	}
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		file.Close()
-		return nil, fmt.Errorf("another univpn instance owns %s: %w", path, err)
+		return nil, fmt.Errorf("another uni-next instance owns %s: %w", path, err)
 	}
 	if err := file.Truncate(0); err != nil {
 		file.Close()
