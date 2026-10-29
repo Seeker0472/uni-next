@@ -1,6 +1,6 @@
 # uni-next
 
-Go/Linux client for the verified Huawei UniVPN `huawei-linux-base-v1` profile.
+Go/Linux client for the verified `cnem-base-v1` profile.
 
 The project deliberately supports one evidence-backed path: TLS 1.2, username/password authentication, CNEM base control messages, and raw IPv4 over the SSL data tunnel. Unsupported authentication, GMTLS, outer UDP, IPsec, IPv6, and site-selection modes fail closed.
 
@@ -73,7 +73,7 @@ Use a NetBird **Network/routing peer** with explicit company CIDRs and masquerad
 
 ## Operational limits
 
-- One UniVPN account/session per runtime directory. A second login can kick out the first.
+- One VPN account/session per runtime directory. A second login can kick out the first.
 - Existing TCP and UDP flows are closed when a reconnect changes the VIP.
 - Rootless `proxy` uses the system resolver; it does not apply gateway-supplied DNS, so VPN-only DNS names may require local resolver configuration.
 - Outer transport is TCP/TLS; TCP-over-TCP can perform poorly on lossy links.

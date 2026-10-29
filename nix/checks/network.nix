@@ -11,7 +11,7 @@ let
     buildPhase = ''
       runHook preBuild
       mkdir -p build
-      go test -c -o build/protocol.test ./internal/protocol/univpn
+      go test -c -o build/protocol.test ./internal/protocol/cnem
       go test -c -o build/socks5.test ./internal/socks5
       go test -c -o build/network-linux.test ./internal/network/linux
       runHook postBuild

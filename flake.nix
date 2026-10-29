@@ -1,5 +1,5 @@
 {
-  description = "uni-next: Go client for a verified Huawei UniVPN profile";
+  description = "uni-next: Go client for a verified CNEM profile";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

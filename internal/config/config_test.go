@@ -16,13 +16,13 @@ func TestExampleConfigurationLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Protocol.Profile != "huawei-linux-base-v1" || cfg.Network.MTU != 1300 || !cfg.Socks.UDP.Enabled {
+	if cfg.Protocol.Profile != "cnem-base-v1" || cfg.Network.MTU != 1300 || !cfg.Socks.UDP.Enabled {
 		t.Fatalf("unexpected decoded configuration: %#v", cfg)
 	}
 }
 
 func TestDecodeRejectsDuplicateAndUnknownKeys(t *testing.T) {
-	base := `{"schema_version":1,"protocol":{"profile":"huawei-linux-base-v1"},"server":{"host":"192.0.2.1","port":9443},"auth":{"username":"u","mac":"02:00:00:00:00:01"},"tls":{"spki_sha256":["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="],"cipher_suites":["TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]},"network":{"allowed_routes":["10.0.0.0/24"]}}`
+	base := `{"schema_version":1,"protocol":{"profile":"cnem-base-v1"},"server":{"host":"192.0.2.1","port":9443},"auth":{"username":"u","mac":"02:00:00:00:00:01"},"tls":{"spki_sha256":["AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="],"cipher_suites":["TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]},"network":{"allowed_routes":["10.0.0.0/24"]}}`
 	for name, input := range map[string]string{
 		"duplicate": strings.Replace(base, `"port":9443`, `"port":9443,"port":9444`, 1),
 		"unknown":   strings.Replace(base, `"server":{`, `"unexpected":true,"server":{`, 1),

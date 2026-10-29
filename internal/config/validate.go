@@ -42,7 +42,7 @@ func (c Config) Validate() error {
 	if c.SchemaVersion != 1 {
 		return fmt.Errorf("schema_version: unsupported version %d", c.SchemaVersion)
 	}
-	if c.Protocol.Profile != "huawei-linux-base-v1" {
+	if c.Protocol.Profile != "cnem-base-v1" {
 		return fmt.Errorf("protocol.profile: unsupported profile %q", c.Protocol.Profile)
 	}
 	if strings.TrimSpace(c.Server.Host) == "" {

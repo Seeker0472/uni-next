@@ -18,7 +18,7 @@ buildGoModule {
   doCheck = true;
 
   meta = {
-    description = "uni-next Linux client for the verified Huawei UniVPN profile";
+    description = "uni-next Linux client for the verified CNEM profile";
     mainProgram = "uni-next";
     platforms = lib.platforms.linux;
   };

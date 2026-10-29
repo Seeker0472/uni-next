@@ -1,4 +1,4 @@
-package univpn
+package cnem
 
 import (
 	"encoding/binary"

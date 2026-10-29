@@ -140,7 +140,7 @@ type Logging struct {
 func Defaults() Config {
 	return Config{
 		SchemaVersion: 1,
-		Protocol:      Protocol{Profile: "huawei-linux-base-v1"},
+		Protocol:      Protocol{Profile: "cnem-base-v1"},
 		Server:        Server{Port: 9443},
 		TLS:           TLS{CipherSuites: []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"}},
 		Network:       Network{TunName: "uni-next0", MTU: 1300, Table: 20000, RulePriority: 100},

@@ -11,7 +11,7 @@ import (
 
 	"github.com/seeker/uni-next/internal/apperr"
 	"github.com/seeker/uni-next/internal/network"
-	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
+	protocol "github.com/seeker/uni-next/internal/protocol/cnem"
 )
 
 type Pump struct {

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "protocol": { "profile": "huawei-linux-base-v1" },
+  "protocol": { "profile": "cnem-base-v1" },
   "server": { "host": "192.0.2.10", "port": 9443 },
   "auth": {
     "username": "vpn-user@example",

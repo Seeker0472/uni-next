@@ -1,4 +1,4 @@
-package univpn
+package cnem
 
 const (
 	TypeData      uint16 = 2

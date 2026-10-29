@@ -16,7 +16,7 @@ import (
 	"github.com/seeker/uni-next/internal/network"
 	networklinux "github.com/seeker/uni-next/internal/network/linux"
 	"github.com/seeker/uni-next/internal/packet"
-	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
+	protocol "github.com/seeker/uni-next/internal/protocol/cnem"
 	"github.com/seeker/uni-next/internal/socks5"
 	"github.com/seeker/uni-next/internal/status"
 	"github.com/seeker/uni-next/internal/transport"

@@ -46,7 +46,7 @@ func Load(cfg config.Config, overrides Overrides, stdin *os.File, stderr io.Writ
 			return Values{}, secretError("vpn password", err)
 		}
 	} else if !vpnExplicit && stdin != nil && term.IsTerminal(int(stdin.Fd())) {
-		if _, err := fmt.Fprint(stderr, "UniVPN password: "); err != nil {
+		if _, err := fmt.Fprint(stderr, "VPN password: "); err != nil {
 			return Values{}, secretError("vpn password", err)
 		}
 		result.VPNPassword, err = term.ReadPassword(int(stdin.Fd()))

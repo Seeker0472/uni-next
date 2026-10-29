@@ -1,5 +1,5 @@
-// Package univpn implements the verified Huawei Linux base CNEM profile.
-package univpn
+// Package cnem implements the verified Linux base CNEM profile.
+package cnem
 
 import (
 	"bufio"

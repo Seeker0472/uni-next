@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/seeker/uni-next/internal/config"
-	protocol "github.com/seeker/uni-next/internal/protocol/univpn"
+	protocol "github.com/seeker/uni-next/internal/protocol/cnem"
 )
 
 func TestBuildPlanIntersectsServerAndOperatorRoutes(t *testing.T) {

@@ -13,7 +13,7 @@ uni-next check-config --config /etc/uni-next/config.json
 | Key | Constraint / default |
 | --- | --- |
 | `schema_version` | Must be `1`. |
-| `protocol.profile` | Must be `huawei-linux-base-v1`. |
+| `protocol.profile` | Must be `cnem-base-v1`. |
 | `server.host` | Required gateway DNS name or IP; CR/LF rejected. |
 | `server.port` | `9443`; must be non-zero. |
 | `auth.username` | Required; CR/LF rejected. |

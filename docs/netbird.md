@@ -2,11 +2,11 @@
 
 The uni-next host must run a NetBird peer. Running only the NetBird management server does not create a data-plane routing peer.
 
-1. Create a NetBird Network with one resource for each intended UniVPN CIDR.
+1. Create a NetBird Network with one resource for each intended VPN CIDR.
 2. Assign the uni-next host peer as the routing peer.
 3. Keep masquerade enabled. The company network normally has no return route for NetBird overlay addresses.
 4. Grant access from explicit user/device groups to those resources.
-5. Do not publish `0.0.0.0/0`; this client shares only UniVPN internal routes, not the host's public internet connection.
+5. Do not publish `0.0.0.0/0`; this client shares only VPN internal routes, not the host's public internet connection.
 6. To expose SOCKS on the host's NetBird address, add a separate peer-to-peer policy for the TCP listener and configured UDP relay range. Routed resources use FORWARD policy; the host SOCKS service uses INPUT policy.
 7. Configure `gateway.mode = "netbird"`, the real NetBird interface, the account's actual overlay CIDR, and the exact exported CIDRs.
 
@@ -27,15 +27,15 @@ table inet uni-next-mss {
 }
 ```
 
-This table is declarative host configuration, not a resource created by the Go process. Scope it to the real ingress, TUN, NetBird source range, and exported UniVPN destinations. MSS clamp covers TCP SYN only; validate UDP PMTU, ICMP fragmentation-needed, DF/non-DF traffic, and legal IPv4 fragments separately.
+This table is declarative host configuration, not a resource created by the Go process. Scope it to the real ingress, TUN, NetBird source range, and exported VPN destinations. MSS clamp covers TCP SYN only; validate UDP PMTU, ICMP fragmentation-needed, DF/non-DF traffic, and legal IPv4 fragments separately.
 
 Validation must use another real peer:
 
 - ICMP, TCP, and UDP to an allowed internal target succeed.
 - A peer outside the authorized group cannot reach the resource.
 - The client peer's ordinary public egress IP remains unchanged.
-- Traffic arriving at the internal resource has the current UniVPN VIP after NetBird and kernel NAT.
-- During a forced UniVPN disconnect, packet capture on the physical uplink shows no protected-destination traffic.
+- Traffic arriving at the internal resource has the current VPN VIP after NetBird and kernel NAT.
+- During a forced VPN disconnect, packet capture on the physical uplink shows no protected-destination traffic.
 - TCP MSS, IPv4 fragmentation, and UDP near the 1300-byte tunnel MTU behave correctly.
 
 A management-dashboard `Connected` state is not sufficient evidence.
