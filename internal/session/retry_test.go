@@ -1,8 +1,15 @@
 package session
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/seeker/uni-next/internal/apperr"
+	"github.com/seeker/uni-next/internal/config"
+	"github.com/seeker/uni-next/internal/credential"
 )
 
 func TestBoundedKickoutBudgetUsesSlidingWindow(t *testing.T) {
@@ -45,5 +52,32 @@ func TestBackoffBoundsAndReset(t *testing.T) {
 	value := backoff.Next()
 	if value < 800*time.Millisecond || value > time.Second {
 		t.Fatalf("reset backoff=%s", value)
+	}
+}
+
+func TestDisabledNetworkReconnectReturnsTerminalExitCode(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Server.Host = "127.0.0.1"
+	cfg.Server.Port = 1
+	cfg.Auth.Username = "test-user"
+	cfg.Auth.MAC = "02:00:00:00:00:01"
+	cfg.TLS.SPKISHA256 = []string{"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}
+	cfg.Network.AllowedRoutes = []string{"10.20.0.0/16"}
+	cfg.Runtime.RunDir = t.TempDir()
+	cfg.Runtime.StateDir = t.TempDir()
+	cfg.HTTP.Enabled = true
+	cfg.HTTP.Listeners = []string{"127.0.0.1:0"}
+	cfg.Reconnect.Network.Enabled = false
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := (Runtime{
+		Config:      cfg,
+		Credentials: credential.Values{VPNPassword: []byte("test"), LogoutUserID: []byte("test")},
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Mode:        ModeProxy,
+	}).Run(ctx)
+	if code := apperr.ExitCode(err); code != 26 {
+		t.Fatalf("disabled reconnect exit code=%d, want 26: %v", code, err)
 	}
 }

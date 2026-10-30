@@ -31,6 +31,7 @@ let
     assert evaluated.config.boot.kernel.sysctl."net.ipv4.ip_forward" == 1;
     assert lib.elem "CAP_NET_ADMIN" service.serviceConfig.CapabilityBoundingSet;
     assert lib.elem "vpn-password:/run/keys/uni-next-password" service.serviceConfig.LoadCredential;
+    assert lib.elem 26 service.serviceConfig.RestartPreventExitStatus;
     assert evaluated.config.networking.nftables.tables ? "uni-next-mss";
     assert evaluated.config.networking.nftables.enable;
     configFile;

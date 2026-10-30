@@ -163,8 +163,10 @@ func (r Runtime) Run(ctx context.Context) (returnErr error) {
 			if !budget.Allow(time.Now()) {
 				return apperr.New(apperr.CodeKickout, "reconnect", apperr.RetryNever, "KICKOUT retry policy is exhausted")
 			}
-		} else if appErr.Retry != apperr.RetryNetwork || !r.Config.Reconnect.Network.Enabled {
+		} else if appErr.Retry != apperr.RetryNetwork {
 			return result.Err
+		} else if !r.Config.Reconnect.Network.Enabled {
+			return apperr.Wrap(apperr.CodeNoReconnect, "reconnect", apperr.RetryNever, "network reconnect is disabled", result.Err)
 		}
 		if !result.ReadySince.IsZero() && time.Since(result.ReadySince) >= r.Config.Reconnect.ResetAfter.Duration {
 			backoff.Reset()

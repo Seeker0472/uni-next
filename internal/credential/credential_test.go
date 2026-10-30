@@ -30,6 +30,31 @@ func TestLoadUsesSystemdCredentialsAndClearsSecrets(t *testing.T) {
 	}
 }
 
+func TestSystemServiceExampleUsesSystemdCredentials(t *testing.T) {
+	file, err := os.Open("../../docs/config.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	cfg, err := config.Decode(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	writeCredential(t, directory, "vpn-password", []byte("vpn-secret"), 0o600)
+	writeCredential(t, directory, "logout-user-id", []byte("operator-id"), 0o600)
+	writeCredential(t, directory, "socks-password", []byte("proxy-secret"), 0o600)
+	t.Setenv("CREDENTIALS_DIRECTORY", directory)
+	values, err := Load(cfg, Overrides{}, nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer values.Clear()
+	if string(values.VPNPassword) != "vpn-secret" || string(values.LogoutUserID) != "operator-id" || string(values.SocksPassword) != "proxy-secret" {
+		t.Fatal("system service example did not use the three systemd credentials")
+	}
+}
+
 func TestReadSecretRejectsWorldAccessibleFile(t *testing.T) {
 	directory := t.TempDir()
 	path := writeCredential(t, directory, "unsafe", []byte("secret"), 0o604)

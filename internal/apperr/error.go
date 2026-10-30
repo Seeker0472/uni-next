@@ -16,6 +16,7 @@ const (
 	CodeKickout      Code = "kickout_exhausted"
 	CodeNetwork      Code = "network_state"
 	CodeTransient    Code = "transient_network"
+	CodeNoReconnect  Code = "reconnect_disabled"
 	CodeCanceled     Code = "canceled"
 )
 
@@ -78,6 +79,8 @@ func ExitCode(err error) int {
 		return 24
 	case CodeNetwork:
 		return 25
+	case CodeNoReconnect:
+		return 26
 	case CodeCanceled:
 		return 0
 	default:

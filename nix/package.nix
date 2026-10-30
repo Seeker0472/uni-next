@@ -16,6 +16,12 @@ buildGoModule {
   ];
 
   doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    go test ./...
+    go vet ./...
+    runHook postCheck
+  '';
 
   meta = {
     description = "uni-next Linux client for the verified CNEM profile";

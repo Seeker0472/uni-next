@@ -1,6 +1,6 @@
 # Running as a system service (non-NixOS)
 
-The client is a privileged network service. Creating a TUN interface, assigning the negotiated VIP, and installing policy routes/rules requires `CAP_NET_ADMIN`. It cannot do useful work as an ordinary login user.
+The `connect` command is a privileged network service. Creating a TUN interface, assigning the negotiated VIP, and installing policy routes/rules requires `CAP_NET_ADMIN`. The separate `proxy` command runs as an ordinary login user with an in-process network stack.
 
 Do **not** make the binary setuid or give it file capabilities with `setcap`. Either would let any local user who can execute it rewrite host routing and capture traffic. The supported model is a service manager that starts a dedicated system user with only `CAP_NET_ADMIN` and `/dev/net/tun`.
 
@@ -42,7 +42,7 @@ NixOS users should use `services.uni-next` instead; it applies the same model au
    sudoedit /etc/uni-next/config.json
    ```
 
-   Keep `runtime.state_dir` at `/var/lib/uni-next` and `runtime.run_dir` at `/run/uni-next`, or update the unit's `StateDirectory`/`RuntimeDirectory` consistently. Do not put passwords, tokens, or logout IDs in this file.
+   Replace the documentation-only gateway, username, MAC, SPKI pin, and routes before starting the service. Keep `runtime.state_dir` at `/var/lib/uni-next` and `runtime.run_dir` at `/run/uni-next`, or update the unit's `StateDirectory`/`RuntimeDirectory` consistently. Leave credential file fields out so the service uses `LoadCredential`; do not put passwords, tokens, or logout IDs in this file.
 
    Validate it without touching the network:
 
@@ -60,7 +60,7 @@ NixOS users should use `services.uni-next` instead; it applies the same model au
    sudoedit /etc/uni-next/credentials/logout-user-id
    ```
 
-   A single trailing newline is stripped. If SOCKS authentication is enabled, create `/etc/uni-next/credentials/socks-password` the same way and uncomment the matching `LoadCredential` line in the unit.
+   A single trailing newline is stripped. The supplied configuration enables SOCKS authentication, so create `/etc/uni-next/credentials/socks-password` the same way and uncomment the matching `LoadCredential` line in the unit. You can omit it only when SOCKS is disabled or loopback no-auth is enabled.
 
 5. Install and start the unit:
 
@@ -90,7 +90,7 @@ sudo systemctl restart uni-next
 
 Stopping with `systemctl stop uni-next` sends SIGTERM, attempts logout within the configured timeout, and removes the TUN device, active routes, policy rules, guards, conntrack entries limited to the old VIP/routes, and the journal. `TimeoutStopSec=30s` bounds this.
 
-Exit codes `20..25` are terminal and excluded from `Restart=on-failure`, so trust failures, unsupported responses, and exhausted KICKOUT policy do not form restart loops. Transient failures and unexpected exits restart after 10 seconds. After fixing a terminal condition:
+Exit codes `20..26` are excluded from `Restart=on-failure`, so trust failures, unsupported responses, exhausted KICKOUT policy, and transient failures when `reconnect.network.enabled=false` do not form restart loops. Retryable transient failures and unexpected exits restart after 10 seconds. After fixing a terminal condition:
 
 ```console
 sudo systemctl reset-failed uni-next
@@ -112,7 +112,7 @@ This is a foreground debugging path only. It runs as root in this example; produ
 
 ## Rootless operation
 
-There is no supported rootless mode. A user namespace can create a private TUN, but it has no host-wide effect and cannot provide the split-tunnel routing policy this client owns. If unprivileged users need access to internal destinations, enable the loopback or authenticated SOCKS listener and let them use that; the SOCKS server still runs inside the privileged service. NetBird access is governed by NetBird policy, not by running this client as an ordinary user.
+Run `uni-next proxy` as an ordinary login user for loopback HTTP and SOCKS5 access. It uses an in-process IPv4 stack and does not create TUN, change host routes, or require capabilities. See [`proxy.example.json`](proxy.example.json) and the [CLI-only invocation](configuration.md#commands-and-cli-overrides). Host split routing and NetBird routing-peer operation require the privileged `connect` service described above.
 
 ## Limits
 

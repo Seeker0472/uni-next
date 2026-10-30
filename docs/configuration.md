@@ -37,7 +37,7 @@ A pin is a public identifier, but it must be confirmed over a trusted administra
 | `network.rule_priority` | `100`; one destination rule is allocated per protected prefix by `connect` and must remain below priority `32766`. |
 | `timeouts.connect`, `tls`, `auth`, `control_step`, `write`, `logout` | `10s`, `10s`, `20s`, `10s`, `10s`, `5s`; all positive Go durations. |
 | `heartbeat.interval`, `heartbeat.timeout` | `10s`, `35s`; timeout must exceed interval. |
-| `reconnect.network.enabled` | `true`; enables retry only for classified transient network failures. |
+| `reconnect.network.enabled` | `true`; enables retry only for classified transient network failures. When false, these failures exit `26` so the supplied systemd units do not restart them. |
 | `reconnect.initial`, `maximum`, `reset_after` | `5s`, `1m`, `5m`; bounded exponential delay and healthy-generation reset threshold. |
 | `reconnect.kickout.mode` | `bounded`; `stop`, `bounded`, or `always`. |
 | `reconnect.kickout.window`, `max_retries` | `10m`, `3`; bounded retry budget for gateway type-8 KICKOUT. |
@@ -102,6 +102,21 @@ uni-next version
 
 `connect` and `proxy` use the same precedence: command defaults, then the optional strict JSON file, then explicitly present CLI flags. Validation runs after all three layers, so required values may come entirely from CLI. Scalar flags use their last occurrence. If any repeatable list flag is present, its values replace the complete JSON list rather than append to it.
 
+A complete CLI-only rootless proxy invocation (replace the example host, pin, MAC, route and credential paths with verified values):
+
+```console
+uni-next proxy \
+  --server-host vpn.example \
+  --username vpn-user \
+  --mac 02:00:00:00:00:01 \
+  --spki-sha256 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+  --route 10.19.20.0/24 \
+  --vpn-password-file "$HOME/.config/uni-next/vpn-password" \
+  --logout-user-id-file "$HOME/.config/uni-next/logout-user-id"
+```
+
+Reconnect timing and other advanced options are configured in JSON; CLI-only startup uses their documented defaults.
+
 | CLI flag | Final configuration field |
 | --- | --- |
 | `--server-host`, `--server-port` | `server.host`, `server.port` |
@@ -127,5 +142,6 @@ Both connection commands stay in the foreground and handle SIGINT/SIGTERM. `stat
 | `23` | TLS pin/trust failure. |
 | `24` | KICKOUT policy stopped the session. |
 | `25` | TUN, userspace network stack, policy-routing, ownership, or cleanup failure. |
+| `26` | Network reconnect was disabled and a transient network failure ended the session. |
 
-Unclassified or transient network errors exit `1`, allowing the NixOS unit's `Restart=on-failure` policy to retry them. Exit classes `20..25` are terminal for systemd.
+Unclassified or retryable transient network errors exit `1`, allowing the supplied systemd units' `Restart=on-failure` policy to retry them. Exit classes `20..26` are excluded from systemd restart.

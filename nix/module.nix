@@ -32,6 +32,8 @@ let
   gatewaySources = get [ "gateway" "source_cidrs" ] [ ];
   gatewayRoutes = get [ "gateway" "export_routes" ] [ ];
   tunName = get [ "network" "tun_name" ] "uni-next0";
+  stateDir = get [ "runtime" "state_dir" ] "/var/lib/uni-next";
+  runDir = get [ "runtime" "run_dir" ] "/run/uni-next";
   clampMSS = get [ "gateway" "clamp_tcp_mss" ] true;
 
   parseListener =
@@ -85,6 +87,10 @@ let
     lib.hasAttrByPath [ "auth" "password" ] cfg.settings
     || lib.hasAttrByPath [ "auth" "logout_user_id" ] cfg.settings
     || lib.hasAttrByPath [ "socks" "auth" "password" ] cfg.settings;
+  hasCredentialPathInSettings =
+    lib.hasAttrByPath [ "auth" "password_file" ] cfg.settings
+    || lib.hasAttrByPath [ "auth" "logout_user_id_file" ] cfg.settings
+    || lib.hasAttrByPath [ "socks" "auth" "password_file" ] cfg.settings;
 in
 {
   options.services.uni-next = {
@@ -147,6 +153,14 @@ in
       {
         assertion = !hasInlineSecret;
         message = "services.uni-next.settings must not contain inline passwords or logout identifiers";
+      }
+      {
+        assertion = !hasCredentialPathInSettings;
+        message = "services.uni-next.settings must not contain credential file paths; use services.uni-next.credentials instead";
+      }
+      {
+        assertion = stateDir == "/var/lib/uni-next" && runDir == "/run/uni-next";
+        message = "services.uni-next.settings.runtime must use /var/lib/uni-next and /run/uni-next to match the systemd directories";
       }
       {
         assertion = !cfg.openFirewall || !socksEnabled || sources != [ ];
@@ -227,6 +241,7 @@ in
           23
           24
           25
+          26
         ];
         TimeoutStopSec = "30s";
         AmbientCapabilities = [ "CAP_NET_ADMIN" ];
