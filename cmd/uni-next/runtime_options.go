@@ -165,25 +165,22 @@ func (o *runtimeOptions) parse(arguments []string, base config.Config) (config.C
 	return cfg, credentials, nil
 }
 
-func proxyDefaults() (config.Config, error) {
+func proxyDefaults() config.Config {
 	cfg := config.Defaults()
 	cfg.Socks.Enabled = true
 	cfg.Socks.AllowLoopbackNoAuth = true
 	cfg.HTTP.Enabled = true
+	cfg.Runtime = config.Runtime{}
 
 	runBase := os.Getenv("XDG_RUNTIME_DIR")
 	if runBase == "" {
-		cache, err := os.UserCacheDir()
-		if err != nil {
-			return config.Config{}, fmt.Errorf("resolve user runtime directory: %w", err)
-		}
-		runBase = cache
+		runBase, _ = os.UserCacheDir()
 	}
-	stateBase, err := os.UserConfigDir()
-	if err != nil {
-		return config.Config{}, fmt.Errorf("resolve user state directory: %w", err)
+	if runBase != "" {
+		cfg.Runtime.RunDir = filepath.Join(runBase, "uni-next")
 	}
-	cfg.Runtime.RunDir = filepath.Join(runBase, "uni-next")
-	cfg.Runtime.StateDir = filepath.Join(stateBase, "uni-next")
-	return cfg, nil
+	if stateBase, err := os.UserConfigDir(); err == nil {
+		cfg.Runtime.StateDir = filepath.Join(stateBase, "uni-next")
+	}
+	return cfg
 }

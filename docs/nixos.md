@@ -37,7 +37,9 @@ With sops-nix, point each credential option to a runtime secret path such as `co
 
 The service receives only `CAP_NET_ADMIN`, `/dev/net/tun`, bounded writable state directories, and required address families. Keep `runtime.state_dir` and `runtime.run_dir` at `/var/lib/uni-next` and `/run/uni-next`; the module checks these against its systemd directories. Exit codes 20–26 are excluded from systemd restart, including a transient network error when `reconnect.network.enabled=false`.
 
-When `gateway.mode = "netbird"`, the module enables IPv4 forwarding and, when requested, nftables plus a narrow MSS clamp for the configured ingress interface, source ranges, destination ranges, and TUN. `openFirewall` likewise selects the NixOS nftables backend for its narrow input rules. The module does not change the global FORWARD policy or create NetBird management resources.
+When `gateway.mode = "netbird"`, the module enables IPv4 forwarding and, when requested, a narrow MSS clamp for the configured ingress interface, source ranges, destination ranges, and TUN. It uses the host's existing iptables or nftables firewall backend for that clamp. `openFirewall` selects the NixOS nftables backend for its narrow input rules. The module does not change the global FORWARD policy or create NetBird management resources.
+
+If the routing peer uses a named NetBird client instance, set `services.uni-next.netbirdService` to that instance's systemd unit (for example, `netbird-uni-next.service`). The default is `netbird.service`.
 
 `openFirewall = true` adds source- and destination-limited TCP listener and UDP relay rules derived from SOCKS settings. Keep it false if the host firewall is managed elsewhere.
 

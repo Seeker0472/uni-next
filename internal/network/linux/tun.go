@@ -51,7 +51,8 @@ func (t *Tun) ioContext(ctx context.Context, buffer []byte, read bool) (int, err
 	if read {
 		events = unix.POLLIN
 	}
-	poll := []unix.PollFd{{Fd: int32(t.file.Fd()), Events: events}}
+	fd := int(t.file.Fd())
+	poll := []unix.PollFd{{Fd: int32(fd), Events: events}}
 	for {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -68,9 +69,9 @@ func (t *Tun) ioContext(ctx context.Context, buffer []byte, read bool) (int, err
 		}
 		var count int
 		if read {
-			count, err = t.file.Read(buffer)
+			count, err = unix.Read(fd, buffer)
 		} else {
-			count, err = t.file.Write(buffer)
+			count, err = unix.Write(fd, buffer)
 		}
 		if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EINTR) {
 			continue

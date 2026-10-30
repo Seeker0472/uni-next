@@ -71,10 +71,7 @@ func connect(arguments []string) error {
 }
 
 func runProxy(arguments []string) error {
-	base, err := proxyDefaults()
-	if err != nil {
-		return apperr.Wrap(apperr.CodeConfig, "cli", apperr.RetryNever, "initialize proxy defaults", err)
-	}
+	base := proxyDefaults()
 	options := newRuntimeOptions("proxy")
 	cfg, overrides, err := options.parse(arguments, base)
 	if errors.Is(err, flag.ErrHelp) {

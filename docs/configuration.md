@@ -41,7 +41,7 @@ A pin is a public identifier, but it must be confirmed over a trusted administra
 | `reconnect.initial`, `maximum`, `reset_after` | `5s`, `1m`, `5m`; bounded exponential delay and healthy-generation reset threshold. |
 | `reconnect.kickout.mode` | `bounded`; `stop`, `bounded`, or `always`. |
 | `reconnect.kickout.window`, `max_retries` | `10m`, `3`; bounded retry budget for gateway type-8 KICKOUT. |
-| `runtime.state_dir`, `run_dir` | `/var/lib/uni-next`, `/run/uni-next` for `connect`. CLI-only `proxy` defaults to the per-user config directory and `$XDG_RUNTIME_DIR/uni-next`, falling back to the user cache directory when `XDG_RUNTIME_DIR` is absent. Both must be absolute. |
+| `runtime.state_dir`, `run_dir` | `/var/lib/uni-next`, `/run/uni-next` for `connect`. CLI-only `proxy` defaults to the per-user config directory and `$XDG_RUNTIME_DIR/uni-next`, falling back to the user cache directory when `XDG_RUNTIME_DIR` is absent. If neither a home directory nor the relevant XDG variables are available, supply both directories explicitly in JSON or CLI flags. Both must be absolute. |
 | `logging.level` | `info`; `debug`, `info`, `warn`, or `error`. |
 | `logging.format` | `text`; `text` or `json`. |
 

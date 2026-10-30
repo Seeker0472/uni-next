@@ -58,6 +58,20 @@ let
     "ip saddr ${set sources} ip daddr ${listener.address} udp dport ${toString udpFrom}-${toString udpTo} accept comment \"uni-next SOCKS UDP\""
   ) parsedListeners;
 
+  mssRule =
+    source: destination:
+    "-i ${gatewayInterface} -o ${tunName} -s ${source} -d ${destination} -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu";
+  mssRules = lib.concatMap (
+    source: map (destination: mssRule source destination) gatewayRoutes
+  ) gatewaySources;
+  iptablesMSSStart = lib.concatMapStringsSep "\n" (
+    rule:
+    "iptables -w -t mangle -C FORWARD ${rule} 2>/dev/null || iptables -w -t mangle -A FORWARD ${rule}"
+  ) mssRules;
+  iptablesMSSStop = lib.concatMapStringsSep "\n" (
+    rule: "iptables -w -t mangle -D FORWARD ${rule} 2>/dev/null || true"
+  ) mssRules;
+
   credentials = lib.filter (value: value != null) [
     (
       if cfg.credentials.vpnPasswordFile == null then
@@ -126,6 +140,11 @@ in
       type = types.bool;
       default = false;
       description = "Open only configured SOCKS listener destinations, sources, and ports.";
+    };
+    netbirdService = mkOption {
+      type = types.str;
+      default = "netbird.service";
+      description = "Systemd unit for the NetBird routing peer when gateway.mode is netbird.";
     };
   };
 
@@ -196,30 +215,37 @@ in
       "net.ipv4.ip_forward" = 1;
     };
 
-    networking.nftables.enable = mkIf (
-      (cfg.openFirewall && socksEnabled) || (gatewayMode == "netbird" && clampMSS)
-    ) true;
+    networking.nftables.enable = mkIf (cfg.openFirewall && socksEnabled) true;
+
+    networking.firewall.extraCommands = mkIf (
+      gatewayMode == "netbird" && clampMSS && config.networking.firewall.backend == "iptables"
+    ) iptablesMSSStart;
+    networking.firewall.extraStopCommands = mkIf (
+      gatewayMode == "netbird" && clampMSS && config.networking.firewall.backend == "iptables"
+    ) iptablesMSSStop;
 
     networking.firewall.extraInputRules = mkIf (cfg.openFirewall && socksEnabled) ''
       ${tcpFirewallRules}
       ${lib.optionalString udpEnabled udpFirewallRules}
     '';
 
-    networking.nftables.tables."uni-next-mss" = mkIf (gatewayMode == "netbird" && clampMSS) {
-      family = "inet";
-      content = ''
-        chain forward {
-          type filter hook forward priority mangle; policy accept;
-          iifname "${gatewayInterface}" oifname "${tunName}" ip saddr ${set gatewaySources} ip daddr ${set gatewayRoutes} tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu comment "uni-next NetBird MSS clamp"
-        }
-      '';
-    };
+    networking.nftables.tables."uni-next-mss" =
+      mkIf (gatewayMode == "netbird" && clampMSS && config.networking.firewall.backend == "nftables")
+        {
+          family = "inet";
+          content = ''
+            chain forward {
+              type filter hook forward priority mangle; policy accept;
+              iifname "${gatewayInterface}" oifname "${tunName}" ip saddr ${set gatewaySources} ip daddr ${set gatewayRoutes} tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu comment "uni-next NetBird MSS clamp"
+            }
+          '';
+        };
 
     systemd.services.uni-next = {
       description = "uni-next VPN client";
       wantedBy = [ "multi-user.target" ];
-      wants = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") "netbird.service";
-      after = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") "netbird.service";
+      wants = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") cfg.netbirdService;
+      after = [ "network-online.target" ] ++ lib.optional (gatewayMode == "netbird") cfg.netbirdService;
       startLimitIntervalSec = 300;
       startLimitBurst = 5;
       serviceConfig = {

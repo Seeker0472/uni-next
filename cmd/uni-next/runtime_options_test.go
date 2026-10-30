@@ -67,3 +67,26 @@ func TestProxyHelpExitsSuccessfully(t *testing.T) {
 		t.Fatalf("proxy help exit code=%d, want 0", code)
 	}
 }
+
+func TestProxyCLIOnlyWithExplicitRuntimeWithoutHome(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	options := newRuntimeOptions("proxy")
+	cfg, _, err := options.parse([]string{
+		"--server-host", "vpn.example",
+		"--username", "user",
+		"--mac", "02:00:00:00:00:01",
+		"--spki-sha256", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		"--route", "10.19.20.1/32",
+		"--state-dir", "/run/uni-next-test-state",
+		"--run-dir", "/run/uni-next-test-run",
+	}, proxyDefaults())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Runtime.StateDir != "/run/uni-next-test-state" || cfg.Runtime.RunDir != "/run/uni-next-test-run" {
+		t.Fatalf("explicit runtime directories were lost: %+v", cfg.Runtime)
+	}
+}

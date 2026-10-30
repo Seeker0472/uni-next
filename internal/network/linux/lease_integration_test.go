@@ -5,9 +5,11 @@ package linux
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/seeker/uni-next/internal/config"
 	"github.com/seeker/uni-next/internal/network"
@@ -58,6 +60,7 @@ func TestLeaseLifecycleInIsolatedNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRoute(t, cfg.Network.Table, active, unix.RTN_UNICAST, true)
+	verifyTunRead(t, lease, netip.MustParseAddr("203.0.113.1"))
 
 	if err := lease.Suspend(context.Background()); err != nil {
 		t.Fatal(err)
@@ -85,6 +88,32 @@ func TestLeaseLifecycleInIsolatedNamespace(t *testing.T) {
 	}
 	assertRoute(t, cfg.Network.Table, protected, unix.RTN_UNREACHABLE, false)
 }
+
+func verifyTunRead(t *testing.T, lease network.Lease, destination netip.Addr) {
+	t.Helper()
+	connection, err := net.DialUDP("udp4", nil, net.UDPAddrFromAddrPort(netip.AddrPortFrom(destination, 9)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	if _, err := connection.Write([]byte("uni-next TUN read probe")); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	buffer := make([]byte, cfgTestMTU)
+	for {
+		count, err := lease.Device().ReadContext(ctx, buffer)
+		if err != nil {
+			t.Fatalf("read outbound TUN packet: %v", err)
+		}
+		if count >= 20 && buffer[0]>>4 == 4 {
+			return
+		}
+	}
+}
+
+const cfgTestMTU = 1300
 
 func assertRoute(t *testing.T, table int, prefix netip.Prefix, routeType int, want bool) {
 	t.Helper()
